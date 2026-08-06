@@ -94,6 +94,10 @@ export default function PaymentDetail() {
   if (!payment.data && payment.error instanceof ApiError && payment.error.status === 404)
     return <NotFound />;
 
+  // Null whenever there is nothing under it to qualify, which is what lets it be
+  // rendered before the branch rather than inside one arm of it.
+  const stale = payment.data && payment.error ? <StaleNotice error={payment.error} /> : null;
+
   return (
     <Screen>
       <View style={styles.header}>
@@ -101,19 +105,9 @@ export default function PaymentDetail() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+        {stale}
         {payment.data ? (
-          <>
-            {/* Said plainly, because a seeded record renders the same whether the
-                backend answered or never picked up — and "awaiting confirmation"
-                on a dead API is a screen quietly waiting for nobody. Muted and
-                above the receipt: it qualifies everything under it. */}
-            {payment.error ? (
-              <Txt variant="small" tone="muted">
-                Not reaching the backend right now, so this may be behind.
-              </Txt>
-            ) : null}
-            <Detail payment={payment.data} />
-          </>
+          <Detail payment={payment.data} />
         ) : payment.error ? (
           <Card>
             <Txt variant="small" tone="error">
@@ -125,6 +119,34 @@ export default function PaymentDetail() {
         )}
       </ScrollView>
     </Screen>
+  );
+}
+
+/**
+ * A line above the receipt saying why what is under it may not be the truth.
+ *
+ * It exists because a seeded record renders the same whether the backend
+ * answered or never picked up, and "awaiting confirmation" on a dead API is a
+ * screen quietly waiting for nobody. Muted and above the receipt: it qualifies
+ * everything below it.
+ *
+ * The two ways to arrive here say opposite things, and the wrong one is the more
+ * likely. A transport failure (`ApiError(0, …)`) means we never reached the
+ * backend. A 404 means we did, and it answered that it has never heard of this
+ * pair — which is what `pay`'s fire-and-forget POST looks like when it is lost,
+ * and the case the `NotFound` gate above deliberately lets through. Telling the
+ * user we can't reach a backend that just replied is the wrong sentence, so the
+ * status code picks the copy the same way it picks the screen.
+ */
+function StaleNotice({ error }: { error: Error }) {
+  const unrecorded = error instanceof ApiError && error.status === 404;
+
+  return (
+    <Txt variant="small" tone="muted">
+      {unrecorded
+        ? "The backend hasn't recorded this payment yet, so this may not fill in. The transaction itself is unaffected."
+        : 'Not reaching the backend right now, so this may be behind.'}
+    </Txt>
   );
 }
 

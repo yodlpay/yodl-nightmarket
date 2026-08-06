@@ -29,6 +29,7 @@ import { Txt } from '~/ui/Txt';
 import { useColors } from '~/ui/theme';
 import { useEmailAttestation } from '~/yodl/useEmailAttestation';
 import { YodlHost } from '~/yodl/YodlHost';
+import { FROM_PAY } from './_layout';
 
 export default function Pay() {
   const { qr } = useLocalSearchParams<{ qr?: string }>();
@@ -90,13 +91,13 @@ function PaymentSurface({
         // Not read by the screen. It tells the layout this arrival replaced a
         // full-screen modal, so the presentation should match rather than
         // dismiss one thing while pushing another.
-        params: { chainId, txHash, from: 'pay' },
+        params: { chainId, txHash, from: FROM_PAY },
       });
 
-      // Fire and forget, and the failure is still swallowed: the transaction is
-      // in flight either way, and the only consequence of a lost intent is that
-      // the delivery lands as `unmatched`. Neither the promise nor the query
-      // client belongs to this screen, so both outlive the navigation above.
+      // Fire and forget, and the failure is still swallowed — `api.recordIntent`
+      // documents what a lost intent costs. What is true only here: neither the
+      // promise nor the query client belongs to this screen, so both outlive the
+      // navigation above.
       void api
         .recordIntent({ chainId, txHash, wallet: address })
         // A payment now exists that the feed has never heard of. This is one of

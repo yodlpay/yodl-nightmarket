@@ -31,7 +31,7 @@ import type {
   PaymentState,
   Stats,
 } from '@nightmarket/shared';
-import { isNewerSnapshot, isSameAddress, paymentKey } from '@nightmarket/shared';
+import { isNewerSnapshot, isSameAddress, paymentKey, pendingPayment } from '@nightmarket/shared';
 import { sumDecimalStrings } from './decimal';
 
 export interface RecordIntentInput {
@@ -90,6 +90,10 @@ export class PaymentStore {
    * delivery got here first (possible — Yodl indexes fast) the record is upgraded
    * from `unmatched` to `matched` in place, which is the whole point of keeping
    * unmatched deliveries rather than dropping them.
+   *
+   * The first-sighting branch is `pendingPayment` from `@nightmarket/shared`,
+   * because the app builds the same record into its query cache and the two have
+   * to be one definition rather than two that happen to agree today.
    */
   recordIntent(input: RecordIntentInput): NightmarketPayment {
     const key = paymentKey(input.chainId, input.txHash);
@@ -103,18 +107,9 @@ export class PaymentStore {
           intentAt: existing.intentAt ?? now,
           attribution: existing.version === null ? 'pending' : 'matched',
         }
-      : {
-          chainId: input.chainId,
-          txHash: input.txHash.toLowerCase(),
-          version: null,
-          state: null,
-          recipient: input.memo ? { title: input.memo, subtitle: null } : null,
-          invoice: null,
-          attribution: 'pending',
-          wallet: input.wallet.toLowerCase(),
-          intentAt: now,
-          notifiedAt: null,
-        };
+      : // The server's clock, which is the authoritative `intentAt` — the app
+        // seeds its own copy with the phone's and lets this one replace it.
+        pendingPayment({ ...input, intentAt: now });
 
     this.#records.set(key, record);
     this.#persist();

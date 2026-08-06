@@ -17,6 +17,7 @@ export {
   errorSchema,
   nightmarketPaymentSchema,
   paymentPageSchema,
+  pendingPayment,
   routes,
   statsSchema,
 } from './api';

@@ -19,6 +19,15 @@ import { Screen } from '~/ui/Screen';
 import { Txt } from '~/ui/Txt';
 import { useColors } from '~/ui/theme';
 
+/**
+ * The route param that tells this layout a receipt arrived by replacing `pay`.
+ *
+ * Exported and imported rather than written twice, because `pay.tsx` is the only
+ * place that sets it and this file the only place that reads it — invisible
+ * load-bearing state with nothing linking the two ends. Now grep finds both.
+ */
+export const FROM_PAY = 'pay';
+
 function Loading() {
   const colors = useColors();
 
@@ -78,22 +87,16 @@ export default function MarketLayout() {
             keeping the two presentations apart is what tells the user whether
             they have left the app's own chrome. */}
         <Stack.Screen name="top-up" options={{ presentation: 'modal' }} />
-        {/* Pushed, like activity itself. A payment record is something you may
-            want to sit with rather than glance at and flick away.
-
-            Except when it replaces `pay`. `router.replace` swaps the two at one
-            stack index, so a card here means screens dismissing a full-screen
-            modal and pushing a card in the same commit — two animations, which
-            is exactly the seam the user reads as the app changing its mind.
-            Matching the presentation makes it one crossfade instead.
-
-            The function form is resolved per route instance, so a receipt opened
-            from activity is still a card; only the one that arrived from `pay`
-            carries the param. */}
+        {/* Pushed like activity itself — except when it replaces `pay`.
+            `router.replace` swaps the two at one stack index, so a card here
+            means screens dismissing a full-screen modal and pushing a card in
+            the same commit: two animations, which is exactly the seam the user
+            reads as the app changing its mind. Matching the presentation makes
+            it one crossfade instead. */}
         <Stack.Screen
           name="payment/[chainId]/[txHash]"
           options={({ route }) =>
-            (route.params as { from?: string } | undefined)?.from === 'pay'
+            (route.params as { from?: string } | undefined)?.from === FROM_PAY
               ? { presentation: 'fullScreenModal', animation: 'fade' }
               : { animation: 'slide_from_right' }
           }

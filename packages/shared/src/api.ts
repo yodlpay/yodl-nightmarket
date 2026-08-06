@@ -74,6 +74,52 @@ export const nightmarketPaymentSchema = z.object({
 });
 export type NightmarketPayment = z.infer<typeof nightmarketPaymentSchema>;
 
+/**
+ * The record an intent creates on its own, before any delivery has landed.
+ *
+ * Yodl's half of a payment arrives with a delivery, so until one does five of
+ * these fields are null — `version`, `state`, `recipient`, `invoice`,
+ * `notifiedAt`. `attribution` is `'pending'`, which is a value and not an
+ * absence: sent by us, not yet indexed by them.
+ *
+ * It lives beside the schema because two places build this record and they have
+ * to agree: the API writes it when an intent arrives for a hash it has never
+ * seen, and the app writes it into the query cache so the receipt has something
+ * to read before the POST that creates the real one has finished. A docblock
+ * claiming the two match is a claim; one function is the fact. `apps/api`'s
+ * reconciliation tests assert this shape end to end through the real routes, so
+ * the app's copy inherits that coverage rather than having none.
+ *
+ * `intentAt` is the caller's because the two callers have different clocks: the
+ * server stamps its own, the app stamps the phone's, and they differ by the skew
+ * between a handset and a datacentre. The app's is a first frame — the server's
+ * value replaces it the moment the real GET answers.
+ *
+ * `txHash` and `wallet` are lower-cased here, which is the casing the store
+ * writes and therefore the casing everything downstream compares against.
+ */
+export function pendingPayment(input: {
+  chainId: string;
+  txHash: string;
+  wallet: string;
+  intentAt: string;
+  /** Optional local echo of what the user was paying, for the pending row. */
+  memo?: string;
+}): NightmarketPayment {
+  return {
+    chainId: input.chainId,
+    txHash: input.txHash.toLowerCase(),
+    version: null,
+    state: null,
+    recipient: input.memo ? { title: input.memo, subtitle: null } : null,
+    invoice: null,
+    attribution: 'pending',
+    wallet: input.wallet.toLowerCase(),
+    intentAt: input.intentAt,
+    notifiedAt: null,
+  };
+}
+
 export const paymentPageSchema = z.object({
   payments: z.array(nightmarketPaymentSchema),
   nextCursor: z.string().nullable(),

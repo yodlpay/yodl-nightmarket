@@ -24,7 +24,7 @@
  */
 
 import type { NightmarketPayment } from '@nightmarket/shared';
-import { isTerminalState } from '@nightmarket/shared';
+import { isTerminalState, pendingPayment } from '@nightmarket/shared';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { BALANCE_KEY } from '~/wallet/useBalance';
@@ -117,7 +117,7 @@ export function usePayment(chainId: string | undefined, txHash: string | undefin
   const focused = useIsScreenFocused();
 
   const query = useQuery({
-    queryKey: ['payments', chainId, txHash],
+    queryKey: PAYMENT_KEY(chainId, txHash),
     queryFn: () => api.payment(chainId as string, txHash as string),
     enabled: Boolean(chainId && txHash),
     // Recomputed from the latest data on every tick, which is how the poll stops
@@ -159,6 +159,22 @@ export function usePayment(chainId: string | undefined, txHash: string | undefin
 }
 
 /**
+ * One payment's key, as a function for the reason `FEED_KEY` is one: the hook
+ * that reads it and the seed that writes it sit in different halves of this
+ * file, and a key spelled out inline in both places is two definitions of one
+ * thing.
+ *
+ * `chainId` is typed `string | undefined` rather than `string | number`
+ * deliberately. `pay` holds the chain as a number but reaches the detail screen
+ * through a URL segment, so what the hook is handed is always text — and a
+ * number passed here would build a key that misses, seeding nothing, silently.
+ * The signature is now what says so, instead of a comment at the one call site
+ * that could get it wrong.
+ */
+const PAYMENT_KEY = (chainId: string | undefined, txHash: string | undefined) =>
+  ['payments', chainId, txHash] as const;
+
+/**
  * Write the record the backend is about to hold, before the POST that creates it.
  *
  * `onTransactionSent` reaches us before the hosted page has changed its own
@@ -168,11 +184,10 @@ export function usePayment(chainId: string | undefined, txHash: string | undefin
  * screen mounts with something to read, which is the whole reason the wait was
  * there.
  *
- * This is the record, not a sketch of one. `recordIntent` on a hash the backend
- * has never seen writes exactly these ten fields — six of them null, because
- * Yodl's half of a payment arrives with a delivery and no delivery has landed.
- * The one value only the server can know is `intentAt`, and it differs from
- * this by the clock skew between a phone and a datacentre.
+ * This is the record, not a sketch of one — literally, because `pendingPayment`
+ * is the same function the API calls when an intent arrives for a hash it has
+ * never seen. The only value that differs is `intentAt`: the phone's clock here,
+ * the server's there, apart by the skew between the two.
  *
  * `staleTime` is 0, so the real GET still fires the moment the screen mounts.
  * This is a first frame, not a substitute for reading the record.
@@ -186,26 +201,15 @@ export function seedPendingPayment({
   txHash: string;
   wallet: string;
 }) {
-  const payment: NightmarketPayment = {
-    chainId: String(chainId),
-    // Lower-cased the way the store writes them, so nothing on screen changes
-    // case under the user when the fetched record replaces this one.
-    txHash: txHash.toLowerCase(),
-    version: null,
-    state: null,
-    recipient: null,
-    invoice: null,
-    attribution: 'pending',
-    wallet: wallet.toLowerCase(),
+  const chain = String(chainId);
+  const payment = pendingPayment({
+    chainId: chain,
+    txHash,
+    wallet,
     intentAt: new Date().toISOString(),
-    notifiedAt: null,
-  };
+  });
 
-  // The same key `usePayment` builds, and `chainId` has to be a string to be the
-  // same key: `pay` holds the chain as a number, but it reaches the detail
-  // screen through a URL segment, so what the hook is handed is always text. An
-  // unstringified key here would miss and seed nothing, silently.
-  queryClient.setQueryData(['payments', String(chainId), txHash], payment);
+  queryClient.setQueryData(PAYMENT_KEY(chain, txHash), payment);
 }
 
 export function useStats() {
