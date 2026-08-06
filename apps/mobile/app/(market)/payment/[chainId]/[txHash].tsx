@@ -117,13 +117,9 @@ export default function PaymentDetail() {
 }
 
 /**
- * A line above the receipt saying why what is under it may not be the truth: a
- * seeded record renders the same whether the backend answered or never picked
- * up, and "awaiting confirmation" on a dead API is a screen waiting for nobody.
- *
- * The status code picks the copy for the same reason it picks the screen. A 404
- * means we did reach the backend and it has never heard of this pair — a lost
- * intent POST — so saying we can't reach it would be the wrong sentence.
+ * A seeded record renders the same whether the backend answered or never picked
+ * up, so this says which. A 404 means we reached it and the intent never landed,
+ * which is a different sentence from not reaching it at all.
  */
 function StaleNotice({ error }: { error: Error }) {
   const unrecorded = error instanceof ApiError && error.status === 404;
