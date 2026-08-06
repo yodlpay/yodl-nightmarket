@@ -1,10 +1,10 @@
 /**
  * The payment screen. Yodl owns it up to the point a transaction exists.
  *
- * `onTransactionSent` is the handover: we post the intent, then leave for our own
- * status screen, which polls the backend record until the payment settles. So the
- * hosted UI covers choosing and signing, and everything after it — waiting,
- * settling, the receipt — is ours.
+ * `onTransactionSent` is the handover: we seed the record, leave for our own
+ * status screen, and post the intent behind us. That screen polls the backend
+ * record until the payment settles. So the hosted UI covers choosing and signing,
+ * and everything after it — waiting, settling, the receipt — is ours.
  *
  * The record is what we render, not the SDK's bridged status. It is the same data
  * either way, but the backend's copy is signed (or pulled from Yodl's API), it
@@ -20,7 +20,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { api } from '~/api/client';
-import { invalidateWalletData } from '~/api/hooks';
+import { invalidateWalletData, seedPendingPayment } from '~/api/hooks';
 import { debug, warn } from '~/lib/log';
 import { Button } from '~/ui/Button';
 import { Gate } from '~/ui/Gate';
@@ -76,23 +76,34 @@ function PaymentSurface({
 
   const handleTransactionSent = useCallback(
     (txHash: string) => {
-      // Recorded *before* we navigate, and the failure is still swallowed: the
-      // status screen reads the record by identity, so arriving ahead of the POST
-      // would show "we don't have this one" for a payment that is in flight. The
-      // hash exists either way, so we leave either way.
+      // The SDK hands us the hash before it forwards the RPC answer to the page,
+      // so this callback runs while Yodl is still on the confirming screen. We
+      // used to spend that lead — and up to the API client's 10s timeout — on a
+      // POST, which is why the hosted UI was seen to change before ours did.
+      //
+      // Seeding is what makes leaving immediately safe. The status screen reads
+      // the record by identity, and now the record is there to read.
+      seedPendingPayment({ chainId, txHash, wallet: address });
+
+      router.replace({
+        pathname: '/(market)/payment/[chainId]/[txHash]',
+        // Not read by the screen. It tells the layout this arrival replaced a
+        // full-screen modal, so the presentation should match rather than
+        // dismiss one thing while pushing another.
+        params: { chainId, txHash, from: 'pay' },
+      });
+
+      // Fire and forget, and the failure is still swallowed: the transaction is
+      // in flight either way, and the only consequence of a lost intent is that
+      // the delivery lands as `unmatched`. Neither the promise nor the query
+      // client belongs to this screen, so both outlive the navigation above.
       void api
         .recordIntent({ chainId, txHash, wallet: address })
         // A payment now exists that the feed has never heard of. This is one of
         // the two moments the app knows the server changed, and saying so here is
         // what replaced refetching every screen whenever it came back into view.
         .then(invalidateWalletData)
-        .catch((cause) => warn('pay', 'intent not recorded', cause))
-        .finally(() =>
-          router.replace({
-            pathname: '/(market)/payment/[chainId]/[txHash]',
-            params: { chainId, txHash },
-          }),
-        );
+        .catch((cause) => warn('pay', 'intent not recorded', cause));
     },
     [address, chainId],
   );

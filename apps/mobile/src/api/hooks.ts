@@ -158,6 +158,56 @@ export function usePayment(chainId: string | undefined, txHash: string | undefin
   return query;
 }
 
+/**
+ * Write the record the backend is about to hold, before the POST that creates it.
+ *
+ * `onTransactionSent` reaches us before the hosted page has changed its own
+ * screen, so at that instant we are ahead. The only thing that used to stand
+ * between it and our receipt was a round trip to our own API, and waiting for
+ * one gave the lead away. Seeding lets the navigation go first: the detail
+ * screen mounts with something to read, which is the whole reason the wait was
+ * there.
+ *
+ * This is the record, not a sketch of one. `recordIntent` on a hash the backend
+ * has never seen writes exactly these ten fields — six of them null, because
+ * Yodl's half of a payment arrives with a delivery and no delivery has landed.
+ * The one value only the server can know is `intentAt`, and it differs from
+ * this by the clock skew between a phone and a datacentre.
+ *
+ * `staleTime` is 0, so the real GET still fires the moment the screen mounts.
+ * This is a first frame, not a substitute for reading the record.
+ */
+export function seedPendingPayment({
+  chainId,
+  txHash,
+  wallet,
+}: {
+  chainId: number;
+  txHash: string;
+  wallet: string;
+}) {
+  const payment: NightmarketPayment = {
+    chainId: String(chainId),
+    // Lower-cased the way the store writes them, so nothing on screen changes
+    // case under the user when the fetched record replaces this one.
+    txHash: txHash.toLowerCase(),
+    version: null,
+    state: null,
+    recipient: null,
+    invoice: null,
+    attribution: 'pending',
+    wallet: wallet.toLowerCase(),
+    intentAt: new Date().toISOString(),
+    notifiedAt: null,
+  };
+
+  // The same key `usePayment` builds, and `chainId` has to be a string to be the
+  // same key: `pay` holds the chain as a number, but it reaches the detail
+  // screen through a URL segment, so what the hook is handed is always text. An
+  // unstringified key here would miss and seed nothing, silently.
+  queryClient.setQueryData(['payments', String(chainId), txHash], payment);
+}
+
 export function useStats() {
   return useQuery({ queryKey: ['stats'], queryFn: () => api.stats() });
 }

@@ -83,7 +83,16 @@ export default function PaymentDetail() {
   // A 404 is the backend saying it has never heard of this pair, which is a
   // different thing from the backend being unreachable and deserves a different
   // screen. The status code is the only thing that separates them.
-  if (payment.error instanceof ApiError && payment.error.status === 404) return <NotFound />;
+  //
+  // Only when there is nothing to show, though. `pay` seeds the record and
+  // navigates without waiting for the POST that creates it, so the first GET can
+  // legitimately arrive before the intent does — and `retry: false` means that
+  // one 404 is the whole answer. Reading it as "we don't have this one" for a
+  // payment the user just signed is the worst thing this screen can say. With
+  // data present the miss is a race; without it, it is the deep link this branch
+  // was written for.
+  if (!payment.data && payment.error instanceof ApiError && payment.error.status === 404)
+    return <NotFound />;
 
   return (
     <Screen>
@@ -93,7 +102,18 @@ export default function PaymentDetail() {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         {payment.data ? (
-          <Detail payment={payment.data} />
+          <>
+            {/* Said plainly, because a seeded record renders the same whether the
+                backend answered or never picked up — and "awaiting confirmation"
+                on a dead API is a screen quietly waiting for nobody. Muted and
+                above the receipt: it qualifies everything under it. */}
+            {payment.error ? (
+              <Txt variant="small" tone="muted">
+                Not reaching the backend right now, so this may be behind.
+              </Txt>
+            ) : null}
+            <Detail payment={payment.data} />
+          </>
         ) : payment.error ? (
           <Card>
             <Txt variant="small" tone="error">
@@ -142,6 +162,11 @@ function NotFound() {
  * No spinner, matching the rest of the app: a placeholder the shape of the
  * content tells you what is coming, and a spinner tells you only that something
  * is happening.
+ *
+ * Unreachable from `pay`, which seeds the record before it navigates — and still
+ * the honest first frame for the two arrivals that have nothing cached: a deep
+ * link, and a tap on a feed row, whose data is filed under the feed's key rather
+ * than this one.
  */
 function Skeleton() {
   const colors = useColors();

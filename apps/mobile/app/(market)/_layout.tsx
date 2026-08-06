@@ -79,10 +79,24 @@ export default function MarketLayout() {
             they have left the app's own chrome. */}
         <Stack.Screen name="top-up" options={{ presentation: 'modal' }} />
         {/* Pushed, like activity itself. A payment record is something you may
-            want to sit with rather than glance at and flick away. */}
+            want to sit with rather than glance at and flick away.
+
+            Except when it replaces `pay`. `router.replace` swaps the two at one
+            stack index, so a card here means screens dismissing a full-screen
+            modal and pushing a card in the same commit — two animations, which
+            is exactly the seam the user reads as the app changing its mind.
+            Matching the presentation makes it one crossfade instead.
+
+            The function form is resolved per route instance, so a receipt opened
+            from activity is still a card; only the one that arrived from `pay`
+            carries the param. */}
         <Stack.Screen
           name="payment/[chainId]/[txHash]"
-          options={{ animation: 'slide_from_right' }}
+          options={({ route }) =>
+            (route.params as { from?: string } | undefined)?.from === 'pay'
+              ? { presentation: 'fullScreenModal', animation: 'fade' }
+              : { animation: 'slide_from_right' }
+          }
         />
         <Stack.Screen name="pay" options={{ presentation: 'fullScreenModal', animation: 'fade' }} />
         <Stack.Screen name="onboard" options={{ presentation: 'fullScreenModal' }} />
