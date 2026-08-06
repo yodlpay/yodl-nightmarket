@@ -7,8 +7,15 @@
  * mounted with `null`s, and mounting them with placeholder values would point the
  * hosted UI at the wrong chain.
  *
- * So this renders `fallback` until the wallet is genuinely ready and only then
- * mounts the provider. Everything below it can assume a connected wallet.
+ * So this renders `HostedLoading` until the wallet is genuinely ready and only
+ * then mounts the provider. Everything below it can assume a connected wallet.
+ *
+ * That is the same component `pay` hands the SDK as `renderLoading`, which is
+ * the point: the wallet wait and the hosted surface's own boot are one pause to
+ * the user, and they were two treatments — an accented spinner and then a static
+ * mark — arguing across a seam only we can see. There used to be a `fallback`
+ * prop here for callers wanting their own; all three passed nothing, so it was
+ * one branch of dead configurability sitting exactly where the fix went.
  *
  * The theme is passed here rather than per component: `theme` and `themeMode` on
  * the provider are defaults for every hosted component beneath it, so payment,
@@ -16,11 +23,12 @@
  * chrome for free.
  */
 
-import { brand, dark, nightmarketYodlTheme } from '@nightmarket/theme';
+import { brand, nightmarketYodlTheme, space } from '@nightmarket/theme';
 import { YodlProvider, type YodlTheme } from '@yodlpay/react-native';
 import type { ReactNode } from 'react';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useWallet } from '~/wallet/useWallet';
+import { HostedLoading } from './HostedLoading';
 import { sdk } from './sdk';
 import { useYodl7702Provider } from './use7702Provider';
 
@@ -36,10 +44,8 @@ const theme: YodlTheme = nightmarketYodlTheme;
 
 export function YodlHost({
   children,
-  fallback,
 }: {
   children: (wallet: { address: string; chainId: number }) => ReactNode;
-  fallback?: ReactNode;
 }) {
   const { provider, address, chainId, isConnected, error } = useWallet();
 
@@ -50,35 +56,17 @@ export function YodlHost({
   const yodlProvider = useYodl7702Provider(provider);
 
   if (!isConnected || !yodlProvider || !address || chainId === null) {
+    // The centring lives here rather than in `HostedLoading`, which is drawn
+    // inside the SDK's overlay on the pay path and that overlay is already an
+    // absolutely-positioned, centred fill.
+    //
+    // A wallet that failed to provision never arrives, so this is the only place
+    // that failure can be seen now that no screen asks anyone to create a wallet
+    // by hand.
     return (
-      fallback ?? (
-        <View
-          style={{
-            flex: 1,
-            // The shell the hosted surface is about to paint, not dark mode's
-            // ground. Same hex, but this frame is Ink in a light-mode session
-            // too, and `dark.bg` named the right colour for the wrong reason.
-            // The two tones below stay `dark`: those are the tiers the palette
-            // checked against an Ink ground, which is what they are sitting on.
-            backgroundColor: brand.surface,
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 24,
-          }}
-        >
-          {/*
-            A wallet that failed to provision never arrives, so a spinner here is
-            a lie that lasts forever. It is the only place that failure can be
-            seen now that no screen asks anyone to create a wallet by hand — and
-            the message is Privy's own, which names the cause.
-          */}
-          {error ? (
-            <Text style={{ color: dark.error, textAlign: 'center' }}>{error.message}</Text>
-          ) : (
-            <ActivityIndicator color={dark.accent} />
-          )}
-        </View>
-      )
+      <View style={styles.wait}>
+        <HostedLoading error={error} />
+      </View>
     );
   }
 
@@ -98,3 +86,20 @@ export function YodlHost({
     </YodlProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  /**
+   * The shell the hosted surface is about to paint, not dark mode's ground. Same
+   * hex, but this frame is Ink in a light-mode session too, and `dark.bg` named
+   * the right colour for the wrong reason. The tones inside `HostedLoading` stay
+   * `dark` for the matching reason: those are the tiers the palette checked
+   * against an Ink ground, which is what they are sitting on.
+   */
+  wait: {
+    flex: 1,
+    backgroundColor: brand.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: space.xl,
+  },
+});

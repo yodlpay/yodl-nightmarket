@@ -11,12 +11,15 @@
  * survives the app being backgrounded mid-payment, and it is still there when the
  * user opens the payment again a day later.
  *
- * The three props below that shape the hosted surface — the completion policy,
- * the ground colour and the loader — are one decision said three ways: this
- * screen owns both of the transitions the user sees. Yodl no longer moves itself
- * when a transaction lands, and it no longer draws the first thing on screen. Its
- * loading window and ours are one treatment on one colour, and the change at the
- * end of the flow is ours alone.
+ * The three props below that shape the hosted surface — the submit policy, the
+ * ground colour and the loader — are one decision said three ways: this screen
+ * owns both of the transitions the user sees. Yodl does not move itself when a
+ * transaction lands, and it does not draw the first thing on screen — with the
+ * caveat that a hosted build predating the policy still navigates on its own,
+ * which the comment on `navigateOnSubmit` covers. The loader it shows is the one
+ * `YodlHost` already drew for the wallet wait, so the pause from tapping the QR
+ * to the amount pad is one treatment on one colour, and the change at the end of
+ * the flow is ours alone.
  *
  * The `qrData` guard stays load-bearing: `<YodlPayment>` renders *nothing* for a QR
  * it doesn't recognise, so an unguarded render is a blank screen, not an error.
@@ -35,7 +38,7 @@ import { Gate } from '~/ui/Gate';
 import { IconFinder } from '~/ui/Icon';
 import { Txt } from '~/ui/Txt';
 import { useColors } from '~/ui/theme';
-import { PayLoading } from '~/yodl/PayLoading';
+import { HostedLoading } from '~/yodl/HostedLoading';
 import { useEmailAttestation } from '~/yodl/useEmailAttestation';
 import { YodlHost } from '~/yodl/YodlHost';
 import { FROM_PAY } from './_layout';
@@ -119,7 +122,7 @@ function PaymentSurface({
         // A hosted build that predates the policy drops the unknown param and
         // navigates as it always has — a duplicated transition, which is the bug
         // we started with, not a broken payment.
-        navigateOnCompletion="never"
+        navigateOnSubmit="never"
         style={styles.fill}
         // Ink in both schemes, matching the shell the hosted surface paints.
         //
@@ -130,11 +133,9 @@ function PaymentSurface({
         // a Paper page turned light mode's single designed luminance boundary
         // into two crossings of it in under a second.
         backgroundColor={brand.surface}
-        renderLoading={() => <PayLoading />}
-        // The SDK reveals at its 8s ceiling whether or not the page ever
-        // answered, so this line is the whole diagnosis: when it lands tells you
-        // which of the two happened, and it is the only view we have of how long
-        // the hosted UI actually takes on a real network.
+        // Literally the same component `YodlHost` drew a moment ago.
+        renderLoading={() => <HostedLoading />}
+        // When this lands is the only view we have of real-network boot time.
         onReady={() => debug('pay', 'hosted UI ready')}
         // A wallet with no Yodl account gets asked to register right here, in the
         // middle of paying — which is the moment an OTP hurts most, since there
