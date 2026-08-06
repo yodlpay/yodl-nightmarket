@@ -1,0 +1,10 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# Expo's native build steps and Biome's binary need to run their install scripts.
+onlyBuiltDependencies:
+  - "@biomejs/biome"
+  - esbuild
+  - sharp
+  - unrs-resolver

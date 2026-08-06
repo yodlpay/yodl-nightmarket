@@ -1,0 +1,27 @@
+{
+  "name": "yodl-nightmarket",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Nightmarket — a Yodl SDK demo: Expo wallet app + Hono integration backend in one pnpm monorepo",
+  "engines": {
+    "node": ">=22",
+    "pnpm": ">=10"
+  },
+  "packageManager": "pnpm@10.26.1",
+  "scripts": {
+    "setup:env": "node scripts/setup-env.mjs",
+    "dev": "turbo run dev",
+    "dev:api": "pnpm --filter @nightmarket/api dev",
+    "dev:mobile": "pnpm --filter @nightmarket/mobile start",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "lint": "biome check .",
+    "format": "biome format --write ."
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.15",
+    "turbo": "^2.9.14",
+    "typescript": "^5.9.3"
+  }
+}

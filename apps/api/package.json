@@ -1,0 +1,31 @@
+{
+  "name": "@nightmarket/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Nightmarket's Yodl integration backend — signed webhooks in, reconciled payments out",
+  "main": "./src/index.ts",
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=.env src/index.ts",
+    "start": "tsx --env-file-if-exists=.env src/index.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "keygen": "tsx scripts/generate-keypair.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.0",
+    "@nightmarket/shared": "workspace:*",
+    "hono": "^4.13.0",
+    "jose": "^6.2.8",
+    "viem": "2.55.5",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "tsx": "^4.23.5",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "paths": {
+      "~/*": ["./src/*"],
+      // `react-native-qrcode-styled` ships full typings but declares no `types`
+      // field and no `exports` map, so tsc resolves its `main` — a plain .js
+      // with no sibling .d.ts — and the import lands as implicit `any`. Metro
+      // reads the package's `react-native` field and compiles the same source
+      // either way; this only tells tsc where the declarations already are.
+      // The alternative was `declare module '…'`, which throws the real types
+      // away to silence one error.
+      "react-native-qrcode-styled": [
+        "../../node_modules/react-native-qrcode-styled/lib/typescript/commonjs/src/index.d.ts"
+      ]
+    }
+  },
+  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
+  "exclude": ["node_modules", "android", "ios"]
+}

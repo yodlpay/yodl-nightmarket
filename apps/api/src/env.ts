@@ -1,0 +1,91 @@
+/**
+ * Environment, read once and validated once.
+ *
+ * The two Yodl secrets are deliberately separate fields with separate names.
+ * They are not interchangeable and mixing them up produces a confusing failure:
+ *
+ *  - `YODL_WEBHOOK_SIGNING_SECRET` is an HMAC key. It is never transmitted —
+ *    nothing in a delivery contains it — and it only ever proves that a webhook
+ *    came from Yodl.
+ *  - `YODL_API_SECRET` is an HTTP Basic password that travels on every request to
+ *    api.yodl.me. Anything holding it can read every payment made through the
+ *    integration, so it stays server-side.
+ *
+ * https://docs.yodl.me/integrations/overview
+ */
+
+import { isAddress, zeroAddress } from 'viem';
+import { z } from 'zod';
+
+const envSchema = z.object({
+  PORT: z.coerce.number().int().positive().default(8787),
+  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+
+  /** Lowercased on read: Yodl lowercases it in the payload and the header. */
+  YODL_INTEGRATION_ADDRESS: z
+    .string()
+    // `strict: false` accepts either casing — an operator pasting the checksummed
+    // form from Yodl's dashboard is pasting the right address, and the transform
+    // below is what settles which form we hold.
+    .refine(
+      (value) => isAddress(value, { strict: false }),
+      'YODL_INTEGRATION_ADDRESS must be a 0x address',
+    )
+    .transform((value) => value.toLowerCase())
+    .default(zeroAddress),
+
+  /** HMAC key for `X-Yodl-Signature`. Defaults to the doc's worked-example secret. */
+  YODL_WEBHOOK_SIGNING_SECRET: z.string().min(1).default('integration-example-secret'),
+
+  /** HTTP Basic password for api.yodl.me. Absent → the proxy route returns 501. */
+  YODL_API_SECRET: z.string().optional(),
+  YODL_API_BASE_URL: z.string().url().default('https://api.yodl.me'),
+
+  /**
+   * Ed25519 private key for email attestation, base64-encoded PKCS#8 PEM.
+   * Absent → the attestation route is off and returns 404.
+   *
+   * Base64 because a PEM is multi-line and `.env` files disagree about newlines:
+   * Node's `--env-file` parser keeps `\n` as a literal backslash-n rather than
+   * unescaping it, so the obvious "escape the newlines" encoding yields a key
+   * that fails to import with a message about ASN.1 rather than about quoting.
+   * One line of base64 has no such ambiguity in any parser.
+   *
+   * A raw PEM is still accepted, for a deployment whose secret store hands one
+   * over intact.
+   */
+  YODL_ATTESTATION_PRIVATE_KEY: z
+    .string()
+    .optional()
+    .transform((value) => {
+      if (!value) return undefined;
+      if (value.includes('-----BEGIN')) return value;
+      return Buffer.from(value, 'base64').toString('utf8');
+    })
+    .refine((value) => value === undefined || value.includes('-----BEGIN PRIVATE KEY-----'), {
+      message:
+        'YODL_ATTESTATION_PRIVATE_KEY must be a PKCS#8 PEM, or that PEM base64-encoded. ' +
+        'Regenerate with: pnpm --filter @nightmarket/api keygen',
+    }),
+  YODL_ATTESTATION_KID: z.string().default('nightmarket-dev'),
+
+  /** Where the payment store is persisted. Set to `:memory:` to disable. */
+  NIGHTMARKET_DATA_FILE: z.string().default('.data/store.json'),
+
+  /** `1` seeds a few stalls' worth of payments so the app has something to show. */
+  NIGHTMARKET_SEED: z
+    .string()
+    .default('0')
+    .transform((value) => value === '1' || value.toLowerCase() === 'true'),
+});
+
+export type Env = z.infer<typeof envSchema>;
+
+export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
+  const parsed = envSchema.safeParse(source);
+  if (!parsed.success) {
+    const issues = parsed.error.issues.map((i) => `  ${i.path.join('.')}: ${i.message}`).join('\n');
+    throw new Error(`Invalid environment:\n${issues}`);
+  }
+  return parsed.data;
+}

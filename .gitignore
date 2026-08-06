@@ -1,0 +1,42 @@
+node_modules/
+dist/
+build/
+.turbo/
+*.tsbuildinfo
+
+# expo
+.expo/
+.expo-shared/
+android/
+ios/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+web-build/
+expo-env.d.ts
+
+# env
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# api runtime data
+apps/api/.data/
+
+# os / editor
+.DS_Store
+*.log
+npm-debug.log*
+yarn-error.log*
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+
+# Locally built Yodl packages, installed as file: dependencies while testing an
+# unreleased SDK change. The committed manifest always names published versions.
+apps/mobile/vendor-*.tgz
