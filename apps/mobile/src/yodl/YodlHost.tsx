@@ -10,12 +10,8 @@
  * So this renders `HostedLoading` until the wallet is genuinely ready and only
  * then mounts the provider. Everything below it can assume a connected wallet.
  *
- * That is the same component `pay` hands the SDK as `renderLoading`, which is
- * the point: the wallet wait and the hosted surface's own boot are one pause to
- * the user, and they were two treatments — an accented spinner and then a static
- * mark — arguing across a seam only we can see. There used to be a `fallback`
- * prop here for callers wanting their own; all three passed nothing, so it was
- * one branch of dead configurability sitting exactly where the fix went.
+ * That is the same component `pay` hands the SDK as `renderLoading`: the wallet
+ * wait and the hosted surface's own boot are one pause to the user.
  *
  * The theme is passed here rather than per component: `theme` and `themeMode` on
  * the provider are defaults for every hosted component beneath it, so payment,
@@ -56,13 +52,10 @@ export function YodlHost({
   const yodlProvider = useYodl7702Provider(provider);
 
   if (!isConnected || !yodlProvider || !address || chainId === null) {
-    // The centring lives here rather than in `HostedLoading`, which is drawn
-    // inside the SDK's overlay on the pay path and that overlay is already an
-    // absolutely-positioned, centred fill.
-    //
-    // A wallet that failed to provision never arrives, so this is the only place
-    // that failure can be seen now that no screen asks anyone to create a wallet
-    // by hand.
+    // The centring lives here rather than in `HostedLoading`: on the pay path
+    // that component is drawn inside the SDK's overlay, which is already a
+    // centred fill. This is also the only place a wallet that failed to
+    // provision can be seen, now that no screen asks anyone to create one.
     return (
       <View style={styles.wait}>
         <HostedLoading error={error} />
@@ -89,11 +82,8 @@ export function YodlHost({
 
 const styles = StyleSheet.create({
   /**
-   * The shell the hosted surface is about to paint, not dark mode's ground. Same
-   * hex, but this frame is Ink in a light-mode session too, and `dark.bg` named
-   * the right colour for the wrong reason. The tones inside `HostedLoading` stay
-   * `dark` for the matching reason: those are the tiers the palette checked
-   * against an Ink ground, which is what they are sitting on.
+   * The shell the hosted surface is about to paint, not dark mode's ground —
+   * same hex, but this frame is Ink in a light-mode session too.
    */
   wait: {
     flex: 1,
