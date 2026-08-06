@@ -11,10 +11,18 @@
  * survives the app being backgrounded mid-payment, and it is still there when the
  * user opens the payment again a day later.
  *
+ * The three props below that shape the hosted surface — the completion policy,
+ * the ground colour and the loader — are one decision said three ways: this
+ * screen owns both of the transitions the user sees. Yodl no longer moves itself
+ * when a transaction lands, and it no longer draws the first thing on screen. Its
+ * loading window and ours are one treatment on one colour, and the change at the
+ * end of the flow is ours alone.
+ *
  * The `qrData` guard stays load-bearing: `<YodlPayment>` renders *nothing* for a QR
  * it doesn't recognise, so an unguarded render is a blank screen, not an error.
  */
 
+import { brand } from '@nightmarket/theme';
 import { isPaymentQr, YodlPayment } from '@yodlpay/react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
@@ -27,6 +35,7 @@ import { Gate } from '~/ui/Gate';
 import { IconFinder } from '~/ui/Icon';
 import { Txt } from '~/ui/Txt';
 import { useColors } from '~/ui/theme';
+import { PayLoading } from '~/yodl/PayLoading';
 import { useEmailAttestation } from '~/yodl/useEmailAttestation';
 import { YodlHost } from '~/yodl/YodlHost';
 import { FROM_PAY } from './_layout';
@@ -103,7 +112,30 @@ function PaymentSurface({
     <View style={styles.fill}>
       <YodlPayment
         qrData={qr}
+        // Yodl parks on a terminal "sent" frame instead of walking itself to its
+        // own status screen, so `onTransactionSent` below is the only thing that
+        // changes what the user is looking at. One root transition, and ours.
+        //
+        // A hosted build that predates the policy drops the unknown param and
+        // navigates as it always has — a duplicated transition, which is the bug
+        // we started with, not a broken payment.
+        navigateOnCompletion="never"
         style={styles.fill}
+        // Ink in both schemes, matching the shell the hosted surface paints.
+        //
+        // Correct only now that Yodl reports itself ready at its first real
+        // content rather than at its first frame: what appears behind this is
+        // the Ink amount pad. While ready still fired on mount, the frame behind
+        // it was Yodl's own Paper loading screen, and an Ink overlay in front of
+        // a Paper page turned light mode's single designed luminance boundary
+        // into two crossings of it in under a second.
+        backgroundColor={brand.surface}
+        renderLoading={() => <PayLoading />}
+        // The SDK reveals at its 8s ceiling whether or not the page ever
+        // answered, so this line is the whole diagnosis: when it lands tells you
+        // which of the two happened, and it is the only view we have of how long
+        // the hosted UI actually takes on a real network.
+        onReady={() => debug('pay', 'hosted UI ready')}
         // A wallet with no Yodl account gets asked to register right here, in the
         // middle of paying — which is the moment an OTP hurts most, since there
         // is a merchant waiting. Supplying the fetcher on this surface is what

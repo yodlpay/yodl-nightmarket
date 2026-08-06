@@ -16,7 +16,7 @@
  * chrome for free.
  */
 
-import { dark, nightmarketYodlTheme } from '@nightmarket/theme';
+import { brand, dark, nightmarketYodlTheme } from '@nightmarket/theme';
 import { YodlProvider, type YodlTheme } from '@yodlpay/react-native';
 import type { ReactNode } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
@@ -55,7 +55,12 @@ export function YodlHost({
         <View
           style={{
             flex: 1,
-            backgroundColor: dark.bg,
+            // The shell the hosted surface is about to paint, not dark mode's
+            // ground. Same hex, but this frame is Ink in a light-mode session
+            // too, and `dark.bg` named the right colour for the wrong reason.
+            // The two tones below stay `dark`: those are the tiers the palette
+            // checked against an Ink ground, which is what they are sitting on.
+            backgroundColor: brand.surface,
             alignItems: 'center',
             justifyContent: 'center',
             padding: 24,
