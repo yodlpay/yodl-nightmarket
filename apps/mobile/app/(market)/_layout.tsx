@@ -19,13 +19,7 @@ import { Screen } from '~/ui/Screen';
 import { Txt } from '~/ui/Txt';
 import { useColors } from '~/ui/theme';
 
-/**
- * The route param that tells this layout a receipt arrived by replacing `pay`.
- *
- * Exported and imported rather than written twice, because `pay.tsx` is the only
- * place that sets it and this file the only place that reads it — invisible
- * load-bearing state with nothing linking the two ends. Now grep finds both.
- */
+/** The route param that tells this layout a receipt arrived by replacing `pay`. */
 export const FROM_PAY = 'pay';
 
 function Loading() {
@@ -87,12 +81,9 @@ export default function MarketLayout() {
             keeping the two presentations apart is what tells the user whether
             they have left the app's own chrome. */}
         <Stack.Screen name="top-up" options={{ presentation: 'modal' }} />
-        {/* Pushed like activity itself — except when it replaces `pay`.
-            `router.replace` swaps the two at one stack index, so a card here
-            means screens dismissing a full-screen modal and pushing a card in
-            the same commit: two animations, which is exactly the seam the user
-            reads as the app changing its mind. Matching the presentation makes
-            it one crossfade instead. */}
+        {/* Pushed like activity itself — except when it replaces `pay`, where a
+            card would mean dismissing a full-screen modal and pushing a card in
+            the same commit. Matching the presentation makes it one crossfade. */}
         <Stack.Screen
           name="payment/[chainId]/[txHash]"
           options={({ route }) =>

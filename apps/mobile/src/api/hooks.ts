@@ -160,37 +160,18 @@ export function usePayment(chainId: string | undefined, txHash: string | undefin
 
 /**
  * One payment's key, as a function for the reason `FEED_KEY` is one: the hook
- * that reads it and the seed that writes it sit in different halves of this
- * file, and a key spelled out inline in both places is two definitions of one
- * thing.
- *
- * `chainId` is typed `string | undefined` rather than `string | number`
- * deliberately. `pay` holds the chain as a number but reaches the detail screen
- * through a URL segment, so what the hook is handed is always text — and a
- * number passed here would build a key that misses, seeding nothing, silently.
- * The signature is now what says so, instead of a comment at the one call site
- * that could get it wrong.
+ * that reads it and the seed that writes it are one definition.
  */
 const PAYMENT_KEY = (chainId: string | undefined, txHash: string | undefined) =>
   ['payments', chainId, txHash] as const;
 
 /**
- * Write the record the backend is about to hold, before the POST that creates it.
+ * Write the record the backend is about to hold, before the POST that creates
+ * it, so `pay` can hand over without waiting on the round trip — see the header
+ * of `pay.tsx`.
  *
- * `onTransactionSent` reaches us before the hosted page has changed its own
- * screen, so at that instant we are ahead. The only thing that used to stand
- * between it and our receipt was a round trip to our own API, and waiting for
- * one gave the lead away. Seeding lets the navigation go first: the detail
- * screen mounts with something to read, which is the whole reason the wait was
- * there.
- *
- * This is the record, not a sketch of one — literally, because `pendingPayment`
- * is the same function the API calls when an intent arrives for a hash it has
- * never seen. The only value that differs is `intentAt`: the phone's clock here,
- * the server's there, apart by the skew between the two.
- *
- * `staleTime` is 0, so the real GET still fires the moment the screen mounts.
- * This is a first frame, not a substitute for reading the record.
+ * A first frame, not a substitute for reading the record: `staleTime` is 0, so
+ * the real GET still fires the moment the screen mounts.
  */
 export function seedPendingPayment({
   chainId,

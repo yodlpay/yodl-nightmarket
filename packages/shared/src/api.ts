@@ -77,26 +77,15 @@ export type NightmarketPayment = z.infer<typeof nightmarketPaymentSchema>;
 /**
  * The record an intent creates on its own, before any delivery has landed.
  *
- * Yodl's half of a payment arrives with a delivery, so until one does five of
- * these fields are null — `version`, `state`, `recipient`, `invoice`,
- * `notifiedAt`. `attribution` is `'pending'`, which is a value and not an
- * absence: sent by us, not yet indexed by them.
+ * One definition rather than two that agree today: the API writes this when an
+ * intent arrives for a hash it has never seen, and the app writes the same
+ * record into its query cache so the receipt has something to read before the
+ * POST that creates the real one has finished.
  *
- * It lives beside the schema because two places build this record and they have
- * to agree: the API writes it when an intent arrives for a hash it has never
- * seen, and the app writes it into the query cache so the receipt has something
- * to read before the POST that creates the real one has finished. A docblock
- * claiming the two match is a claim; one function is the fact. `apps/api`'s
- * reconciliation tests assert this shape end to end through the real routes, so
- * the app's copy inherits that coverage rather than having none.
- *
- * `intentAt` is the caller's because the two callers have different clocks: the
- * server stamps its own, the app stamps the phone's, and they differ by the skew
- * between a handset and a datacentre. The app's is a first frame — the server's
- * value replaces it the moment the real GET answers.
- *
- * `txHash` and `wallet` are lower-cased here, which is the casing the store
- * writes and therefore the casing everything downstream compares against.
+ * `intentAt` is the caller's because the two callers have different clocks — the
+ * server stamps its own, the app the phone's, and the server's replaces the
+ * app's the moment the real GET answers. Casing is the store's, which is what
+ * everything downstream compares against.
  */
 export function pendingPayment(input: {
   chainId: string;

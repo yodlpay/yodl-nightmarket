@@ -84,18 +84,12 @@ export default function PaymentDetail() {
   // different thing from the backend being unreachable and deserves a different
   // screen. The status code is the only thing that separates them.
   //
-  // Only when there is nothing to show, though. `pay` seeds the record and
-  // navigates without waiting for the POST that creates it, so the first GET can
-  // legitimately arrive before the intent does — and `retry: false` means that
-  // one 404 is the whole answer. Reading it as "we don't have this one" for a
-  // payment the user just signed is the worst thing this screen can say. With
-  // data present the miss is a race; without it, it is the deep link this branch
-  // was written for.
+  // Gated on having nothing to show: `pay` seeds the record and navigates before
+  // the POST that creates it lands, so a 404 with data present is that race, not
+  // a payment we have never heard of.
   if (!payment.data && payment.error instanceof ApiError && payment.error.status === 404)
     return <NotFound />;
 
-  // Null whenever there is nothing under it to qualify, which is what lets it be
-  // rendered before the branch rather than inside one arm of it.
   const stale = payment.data && payment.error ? <StaleNotice error={payment.error} /> : null;
 
   return (
@@ -123,20 +117,13 @@ export default function PaymentDetail() {
 }
 
 /**
- * A line above the receipt saying why what is under it may not be the truth.
+ * A line above the receipt saying why what is under it may not be the truth: a
+ * seeded record renders the same whether the backend answered or never picked
+ * up, and "awaiting confirmation" on a dead API is a screen waiting for nobody.
  *
- * It exists because a seeded record renders the same whether the backend
- * answered or never picked up, and "awaiting confirmation" on a dead API is a
- * screen quietly waiting for nobody. Muted and above the receipt: it qualifies
- * everything below it.
- *
- * The two ways to arrive here say opposite things, and the wrong one is the more
- * likely. A transport failure (`ApiError(0, …)`) means we never reached the
- * backend. A 404 means we did, and it answered that it has never heard of this
- * pair — which is what `pay`'s fire-and-forget POST looks like when it is lost,
- * and the case the `NotFound` gate above deliberately lets through. Telling the
- * user we can't reach a backend that just replied is the wrong sentence, so the
- * status code picks the copy the same way it picks the screen.
+ * The status code picks the copy for the same reason it picks the screen. A 404
+ * means we did reach the backend and it has never heard of this pair — a lost
+ * intent POST — so saying we can't reach it would be the wrong sentence.
  */
 function StaleNotice({ error }: { error: Error }) {
   const unrecorded = error instanceof ApiError && error.status === 404;

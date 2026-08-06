@@ -77,27 +77,17 @@ function PaymentSurface({
 
   const handleTransactionSent = useCallback(
     (txHash: string) => {
-      // The SDK hands us the hash before it forwards the RPC answer to the page,
-      // so this callback runs while Yodl is still on the confirming screen. We
-      // used to spend that lead — and up to the API client's 10s timeout — on a
-      // POST, which is why the hosted UI was seen to change before ours did.
-      //
-      // Seeding is what makes leaving immediately safe. The status screen reads
-      // the record by identity, and now the record is there to read.
       seedPendingPayment({ chainId, txHash, wallet: address });
 
       router.replace({
         pathname: '/(market)/payment/[chainId]/[txHash]',
-        // Not read by the screen. It tells the layout this arrival replaced a
-        // full-screen modal, so the presentation should match rather than
-        // dismiss one thing while pushing another.
+        // Not read by the screen — the layout reads it to pick the presentation.
         params: { chainId, txHash, from: FROM_PAY },
       });
 
-      // Fire and forget, and the failure is still swallowed — `api.recordIntent`
-      // documents what a lost intent costs. What is true only here: neither the
-      // promise nor the query client belongs to this screen, so both outlive the
-      // navigation above.
+      // Fire and forget: neither the promise nor the query client belongs to this
+      // screen, so both outlive the navigation above. `api.recordIntent`
+      // documents what a lost intent costs.
       void api
         .recordIntent({ chainId, txHash, wallet: address })
         // A payment now exists that the feed has never heard of. This is one of
