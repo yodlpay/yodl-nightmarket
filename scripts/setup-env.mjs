@@ -26,12 +26,15 @@
  *  3. **Fill everything that can be derived.** The attestation keypair and the
  *     LAN address are both things a machine can work out; making a human paste
  *     them is how a demo acquires a "step 4 that never works".
- *  4. **Say plainly what's left.** The Privy ids cannot be derived.
+ *  4. **Say plainly what's left.** The Privy client id and app secret cannot be
+ *     derived from anything on this machine.
  *
- * The two apps share one value — the Yodl integration address — and it is
- * propagated rather than asked for twice. If those disagree, every webhook is
- * rejected as addressed elsewhere and no payment reaches the feed, which is a
- * genuinely miserable thing to debug.
+ * The two apps share two values — the Yodl integration address and the Privy app
+ * id — and both are propagated rather than asked for twice. If the addresses
+ * disagree, every webhook is rejected as addressed elsewhere and no payment
+ * reaches the feed; if the Privy app ids disagree, every access token the app
+ * sends fails the API's audience check and signup quietly loses the OTP skip.
+ * Both are genuinely miserable things to debug.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -275,7 +278,23 @@ if (isUnset(api, 'YODL_ATTESTATION_PRIVATE_KEY')) {
   note('keypair  already set, left alone');
 }
 
-// 3. Where the phone reaches the API.
+// 3. The Privy app id — one value, two files, exactly like the address above.
+//    The API needs it to check the `aud` of the access tokens the app sends and to
+//    find the right JWKS; the app needs it to log anyone in. Only the app can be
+//    asked for it, so whichever side has it wins and the other is filled from it.
+const privyAppId = !isUnset(mobile, 'EXPO_PUBLIC_PRIVY_APP_ID')
+  ? mobile.get('EXPO_PUBLIC_PRIVY_APP_ID')
+  : !isUnset(api, 'PRIVY_APP_ID')
+    ? api.get('PRIVY_APP_ID')
+    : null;
+
+if (privyAppId) {
+  apiText = put(apiText, { PRIVY_APP_ID: privyAppId });
+  mobileText = put(mobileText, { EXPO_PUBLIC_PRIVY_APP_ID: privyAppId });
+  note(`privy    app id ${privyAppId}, propagated to both`);
+}
+
+// 4. Where the phone reaches the API.
 if (isUnset(mobile, 'EXPO_PUBLIC_API_URL')) {
   const lan = lanAddress();
   const port = api.get('PORT') || '8787';
@@ -295,7 +314,7 @@ if (isUnset(mobile, 'EXPO_PUBLIC_API_URL')) {
 await writeFile(apiFile.path, apiText);
 await writeFile(mobileFile.path, mobileText);
 
-// 4. What's left. Re-read, so the report reflects what is actually on disk.
+// 5. What's left. Re-read, so the report reflects what is actually on disk.
 api = parse(await readFile(apiFile.path, 'utf8'));
 mobile = parse(await readFile(mobileFile.path, 'utf8'));
 
@@ -305,6 +324,19 @@ if (isUnset(mobile, 'EXPO_PUBLIC_PRIVY_APP_ID') || isUnset(mobile, 'EXPO_PUBLIC_
       '    A mobile app needs BOTH — the client is what authorises a non-web\n' +
       '    platform to call Privy, and login fails confusingly with only the app id.\n' +
       '    https://dashboard.privy.io  →  your app  →  Clients',
+  );
+}
+
+if (isUnset(api, 'PRIVY_APP_SECRET')) {
+  note('optional PRIVY_APP_SECRET unset — email attestation declines, so signup uses the OTP');
+  todo.push(
+    "PRIVY_APP_SECRET in apps/api/.env — needed to skip Yodl's OTP.\n" +
+      '    It is how the API reads the email Privy already verified for the caller.\n' +
+      '    Without it the attestation route cannot tell one caller from another, so\n' +
+      '    it declines every request and signup falls back to the emailed code.\n' +
+      '    Server-side only — it can read every user in your app, so it must never\n' +
+      '    be given an EXPO_PUBLIC_ twin.\n' +
+      '    https://dashboard.privy.io  →  your app  →  App settings  →  Basics',
   );
 }
 
