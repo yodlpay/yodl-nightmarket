@@ -155,10 +155,17 @@ export type ApiError = z.infer<typeof errorSchema>;
  * Backs `<YodlSignup fetchEmailAttestation>`: if our backend has already verified
  * this user's email, it mints a short-lived JWT asserting that and the user skips
  * Yodl's OTP. Minting is server-side only — the signing key never reaches a device.
+ *
+ * The wallet is the whole body. There was an optional `email` here once, and the
+ * route signed it, which meant any caller could assert any email for any wallet.
+ * The email now comes from the caller's Privy session and the body has no say in
+ * it, so the field is gone rather than merely ignored — a schema that still named
+ * it would be documenting a channel that does not exist. An older client that
+ * keeps sending one is unaffected: Zod strips unknown keys, so the value is
+ * dropped at the door instead of 400ing the request.
  */
 export const attestationRequestSchema = z.object({
   walletAddress: addressSchema,
-  email: z.string().email().optional(),
 });
 export type AttestationRequest = z.infer<typeof attestationRequestSchema>;
 

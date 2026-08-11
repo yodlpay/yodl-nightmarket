@@ -3,49 +3,59 @@
  *
  * https://docs.yodl.me/integrations/email-attestation
  *
- * ── What this demo does not do ────────────────────────────────────────────────
+ * ── Where the email comes from ────────────────────────────────────────────────
  *
- * A real implementation authenticates the caller — a session token, a Privy
- * access token, something — and then signs for the email *it* has on file for
- * that user. It never signs for an email the client sent it.
+ * From the attester, and from nowhere else. This route authenticates the caller —
+ * a Privy access token on the `Authorization` header — and then signs the email
+ * *it* has on file for that user. It never signs an email the client sent it.
  *
- * This route takes the email from the request body and signs it, which is fine
- * for a demo and is a privilege-escalation bug in production: any caller could
- * assert any email for any wallet, and the OTP step that exists to prevent
- * exactly that would be skipped. The `requireAuth` hook below marks the seam.
- * Fill it in before this goes anywhere real.
+ * The body once carried a `claimedEmail` that got signed as-is, which was fine for
+ * a demo and a privilege-escalation bug in anything real: any caller could assert
+ * any email for any wallet, and the OTP step that exists to prevent exactly that
+ * would be skipped. The seam that used to be marked "fill this in" is now filled
+ * in by `lib/privy.ts`, and the shape of `resolveVerifiedEmail` below is what stops
+ * it from silently regressing — there is no longer a parameter to leak the body
+ * through, so a future implementation cannot accidentally trust one.
+ *
+ * Two things this demo still does not do, and a production integration would:
+ * check that the wallet in the body is one the authenticated user actually owns,
+ * and rate-limit minting per session.
  *
  * Returning `null`/404 is a first-class outcome, not a failure — `fetchEmailAttestation`
  * treats it as "no attestation available" and the user verifies by OTP as usual.
- * Which is why an unconfigured signer here returns a quiet 404 rather than a 500.
+ * Which is why every decline here is a quiet 404 rather than a 401 or a 500: an
+ * unset signing key, unset Privy credentials, a missing or bad token, and a user
+ * with no email linked all cost exactly one extra screen.
  */
 
 import { attestationRequestSchema } from '@nightmarket/shared';
 import { Hono } from 'hono';
 import type { AttestationSigner } from '../lib/attestation';
+import type { ResolveVerifiedEmail } from '../lib/privy';
 
 export interface AttestationRouteOptions {
   signer: AttestationSigner | null;
   /**
    * Resolve the verified email for an authenticated caller.
    *
-   * Return `null` to decline. The demo implementation trusts the request body;
-   * swap it for one that reads your session and ignores the body entirely.
+   * Omitted → the route declines everything. There is deliberately no default:
+   * the only implementation that needs no configuration is one that trusts the
+   * client, and shipping that as a fallback is how the bug above got written.
    */
-  resolveVerifiedEmail?: (
-    walletAddress: string,
-    claimedEmail: string | undefined,
-    authorization: string | undefined,
-  ) => Promise<string | null>;
+  resolveVerifiedEmail?: ResolveVerifiedEmail;
 }
 
 export function attestationRoutes({ signer, resolveVerifiedEmail }: AttestationRouteOptions) {
   const app = new Hono();
-  const resolve = resolveVerifiedEmail ?? demoResolveVerifiedEmail;
 
   app.post('/email', async (c) => {
     if (!signer) {
       console.log('[attest] declined: no signer — YODL_ATTESTATION_PRIVATE_KEY is unset');
+      return c.json({ error: 'Attestation not configured' }, 404);
+    }
+
+    if (!resolveVerifiedEmail) {
+      console.log('[attest] declined: no caller authentication — PRIVY_APP_ID/SECRET are unset');
       return c.json({ error: 'Attestation not configured' }, 404);
     }
 
@@ -55,8 +65,8 @@ export function attestationRoutes({ signer, resolveVerifiedEmail }: AttestationR
       return c.json({ error: 'Invalid request', detail: parsed.error.message }, 400);
     }
 
-    const { walletAddress, email } = parsed.data;
-    const verifiedEmail = await resolve(walletAddress, email, c.req.header('Authorization'));
+    const { walletAddress } = parsed.data;
+    const verifiedEmail = await resolveVerifiedEmail(walletAddress, c.req.header('Authorization'));
     if (!verifiedEmail) {
       // We have nothing verified to assert. The user takes the OTP path.
       console.log(`[attest] declined: no verified email for ${walletAddress}`);
@@ -73,19 +83,6 @@ export function attestationRoutes({ signer, resolveVerifiedEmail }: AttestationR
   });
 
   return app;
-}
-
-/**
- * The demo stand-in. Asserts whatever it is handed.
- *
- * Deliberately a named function rather than an inline default so it shows up in
- * a stack trace and in a grep for "demo" — this is the line to delete.
- */
-async function demoResolveVerifiedEmail(
-  _walletAddress: string,
-  claimedEmail: string | undefined,
-): Promise<string | null> {
-  return claimedEmail ?? null;
 }
 
 /** `GET /.well-known/jwks.json` — where Yodl fetches our public key. HTTPS in production. */
