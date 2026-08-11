@@ -69,6 +69,28 @@ const envSchema = z.object({
     }),
   YODL_ATTESTATION_KID: z.string().default('nightmarket-dev'),
 
+  /**
+   * Sumsub sandbox credentials for the Reusable-KYC donor role: Nightmarket's
+   * users KYC against *our* Sumsub tenant, and `/v1/kyc/:wallet/share-token`
+   * mints the token that lets Yodl's tenant copy that verification instead of
+   * re-verifying. Absent → the /v1/kyc routes answer 501.
+   *
+   * Sandbox tokens only (`sbx:`), enforced. Two things here belong nowhere near
+   * a production tenant: the simulate route fabricates approvals, and a demo
+   * backend has no business holding keys that can mint share tokens for real
+   * identities.
+   */
+  SUMSUB_APP_TOKEN: z
+    .string()
+    .startsWith('sbx:', 'SUMSUB_APP_TOKEN must be a sandbox token (sbx:...)')
+    .optional(),
+  SUMSUB_SECRET_KEY: z.string().min(1).optional(),
+  /** The donor verification level applicants are created against. */
+  SUMSUB_LEVEL_NAME: z.string().default('id-and-liveness'),
+  SUMSUB_API_BASE_URL: z.string().url().default('https://api.sumsub.com'),
+  /** The recipient Sumsub clientId share tokens are minted for — Yodl's tenant. */
+  SUMSUB_SHARE_FOR_CLIENT_ID: z.string().default('yodlpay.com'),
+
   /** Where the payment store is persisted. Set to `:memory:` to disable. */
   NIGHTMARKET_DATA_FILE: z.string().default('.data/store.json'),
 
