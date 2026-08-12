@@ -13,7 +13,9 @@ import type { Env } from './env';
 import { AttestationSigner } from './lib/attestation';
 import { privySessionEmail } from './lib/privy';
 import type { PaymentStore } from './lib/store';
+import { SumsubKycClient } from './lib/sumsub';
 import { attestationRoutes, jwksRoute } from './routes/attestation';
+import { kycRoutes } from './routes/kyc';
 import { paymentRoutes } from './routes/payments';
 import { webhookRoutes } from './routes/webhook';
 
@@ -32,6 +34,19 @@ export function createApp({ env, store }: AppDeps) {
         integrationAddress: env.YODL_INTEGRATION_ADDRESS,
       })
     : null;
+
+  // Same optional-capability contract: no Sumsub sandbox credentials, no donor
+  // KYC — the /v1/kyc routes answer 501 instead of the server refusing to boot.
+  const sumsub =
+    env.SUMSUB_APP_TOKEN && env.SUMSUB_SECRET_KEY
+      ? new SumsubKycClient({
+          appToken: env.SUMSUB_APP_TOKEN,
+          baseUrl: env.SUMSUB_API_BASE_URL,
+          levelName: env.SUMSUB_LEVEL_NAME,
+          secretKey: env.SUMSUB_SECRET_KEY,
+          shareForClientId: env.SUMSUB_SHARE_FOR_CLIENT_ID,
+        })
+      : null;
 
   /**
    * The other half of attestation, and the one that decides *whose* email gets
@@ -65,6 +80,7 @@ export function createApp({ env, store }: AppDeps) {
       payments: store.size,
       capabilities: {
         webhooks: true,
+        kyc: sumsub !== null,
         emailAttestation: signer !== null && resolveVerifiedEmail !== undefined,
       },
     }),
@@ -72,6 +88,7 @@ export function createApp({ env, store }: AppDeps) {
 
   app.route('/webhooks', webhookRoutes(env, store));
   app.route('/v1', paymentRoutes(store));
+  app.route('/v1/kyc', kycRoutes(sumsub));
   app.route('/v1/attestations', attestationRoutes({ signer, resolveVerifiedEmail }));
   app.route('/.well-known', jwksRoute(signer));
 
