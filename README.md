@@ -122,6 +122,9 @@ out:
 - the **integration address**, propagated to both files — if those two disagree,
   every webhook is rejected as addressed elsewhere and no payment ever reaches the
   feed
+- the **Privy app id**, propagated the same way once you have supplied it — if
+  those two disagree, every access token the app sends fails the API's audience
+  check and signup silently loses the OTP skip
 
 Re-running is safe and useful: it never overwrites a value you typed, and it
 **adopts keys added to the example since you set up** — appending them with their
@@ -135,6 +138,7 @@ It then prints what's left, which is:
 | | |
 | --- | --- |
 | `EXPO_PUBLIC_PRIVY_APP_ID`, `EXPO_PUBLIC_PRIVY_CLIENT_ID` | [dashboard.privy.io](https://dashboard.privy.io) → your app → **Clients**. You need both — the client is what authorises a non-web platform |
+| `PRIVY_APP_SECRET` | [dashboard.privy.io](https://dashboard.privy.io) → your app → **App settings** → Basics. Server-side only. Without it the attestation route declines everything and signup falls back to the emailed code |
 | `YODL_INTEGRATION_ADDRESS` | defaults to the sample address from Yodl's docs so the local webhook replay works; replace it in **both** files with yours |
 | `YODL_API_SECRET` | optional — without it `/v1/yodl/payments` returns 501 and everything else works |
 
@@ -271,9 +275,20 @@ quoting.
 `sub` is the **wallet**, not the email — that is what makes the token a binding
 rather than two loose attributes, and it is the part people get wrong first.
 
-> ⚠️ The demo route signs whatever email the request body contains. In production it
-> must authenticate the caller and sign the address *it* has on file; see the
-> `resolveVerifiedEmail` seam in `apps/api/src/routes/attestation.ts`.
+The email is not the app's to propose. The mobile client posts a wallet address and
+a `Authorization: Bearer <Privy access token>` header and nothing else;
+`apps/api/src/lib/privy.ts` verifies that token offline against the JWKS Privy
+publishes for the app, then reads the email Privy has on file for whoever the token
+belongs to. Signing an email the client sent would let any caller assert any address
+for any wallet and skip the very OTP this is bypassing, so there is no code path
+that can — the request schema does not name an email and the resolver has no
+parameter to receive one.
+
+`PRIVY_APP_ID` and `PRIVY_APP_SECRET` are what make that possible. Unset, the route
+declines every request with a 404, which the SDK reads as "no attestation
+available" and the user takes the ordinary OTP. So does a user who signed in by SMS,
+passkey or OAuth and has no email linked at all — `null` is a first-class outcome
+here, not a failure.
 
 ---
 

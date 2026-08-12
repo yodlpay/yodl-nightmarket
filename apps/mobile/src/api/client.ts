@@ -112,6 +112,13 @@ export const api = {
   /**
    * Mint an email attestation so the user can skip Yodl's OTP during signup.
    *
+   * The body names a wallet and nothing else. The email is not ours to propose —
+   * the backend verifies the Privy access token on the `Authorization` header and
+   * signs the address Privy has on file for whoever that token belongs to. The
+   * token is passed in rather than read here because this module is a plain one
+   * and `getAccessToken` is a hook; threading it down from `useEmailAttestation`
+   * keeps the client free of React and of Privy both.
+   *
    * Returns `null` on any failure — a missing attestation is a normal outcome
    * that costs the user one extra screen, never an error worth interrupting a
    * signup flow for. The `signal` comes from Yodl and aborts on timeout, unmount
@@ -120,17 +127,20 @@ export const api = {
    */
   async emailAttestation(
     walletAddress: string,
-    email: string | undefined,
+    accessToken: string,
     signal: AbortSignal,
   ): Promise<{ token: string; email?: string } | null> {
     const url = `${env.apiUrl}${routes.emailAttestation}`;
-    debug('attest', `POST ${url}`, { walletAddress, email: email ?? '(none)' });
+    debug('attest', `POST ${url}`, { walletAddress, accessToken: redactToken(accessToken) });
 
     try {
       const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ walletAddress, email }),
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ walletAddress }),
         signal,
       });
 

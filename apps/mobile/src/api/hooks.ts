@@ -24,7 +24,7 @@
  */
 
 import type { NightmarketPayment } from '@nightmarket/shared';
-import { isTerminalState } from '@nightmarket/shared';
+import { isTerminalState, pendingPayment } from '@nightmarket/shared';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { BALANCE_KEY } from '~/wallet/useBalance';
@@ -117,7 +117,7 @@ export function usePayment(chainId: string | undefined, txHash: string | undefin
   const focused = useIsScreenFocused();
 
   const query = useQuery({
-    queryKey: ['payments', chainId, txHash],
+    queryKey: PAYMENT_KEY(chainId, txHash),
     queryFn: () => api.payment(chainId as string, txHash as string),
     enabled: Boolean(chainId && txHash),
     // Recomputed from the latest data on every tick, which is how the poll stops
@@ -156,6 +156,41 @@ export function usePayment(chainId: string | undefined, txHash: string | undefin
   }, [state]);
 
   return query;
+}
+
+/**
+ * One payment's key, as a function for the reason `FEED_KEY` is one: the hook
+ * that reads it and the seed that writes it are one definition.
+ */
+const PAYMENT_KEY = (chainId: string | undefined, txHash: string | undefined) =>
+  ['payments', chainId, txHash] as const;
+
+/**
+ * Write the record the backend is about to hold, before the POST that creates
+ * it, so `pay` can hand over without waiting on the round trip — see the header
+ * of `pay.tsx`.
+ *
+ * A first frame, not a substitute for reading the record: `staleTime` is 0, so
+ * the real GET still fires the moment the screen mounts.
+ */
+export function seedPendingPayment({
+  chainId,
+  txHash,
+  wallet,
+}: {
+  chainId: number;
+  txHash: string;
+  wallet: string;
+}) {
+  const chain = String(chainId);
+  const payment = pendingPayment({
+    chainId: chain,
+    txHash,
+    wallet,
+    intentAt: new Date().toISOString(),
+  });
+
+  queryClient.setQueryData(PAYMENT_KEY(chain, txHash), payment);
 }
 
 export function useStats() {
