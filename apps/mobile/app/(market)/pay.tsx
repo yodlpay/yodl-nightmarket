@@ -1,34 +1,42 @@
 /**
  * The payment screen. Yodl owns it up to the point a transaction exists.
  *
- * `onTransactionSent` is the handover: we post the intent, then leave for our own
- * status screen, which polls the backend record until the payment settles. So the
- * hosted UI covers choosing and signing, and everything after it — waiting,
- * settling, the receipt — is ours.
+ * `onTransactionSent` is the handover: we seed the record, leave for our own
+ * status screen, and post the intent behind us. That screen polls the backend
+ * record until the payment settles. So the hosted UI covers choosing and signing,
+ * and everything after it — waiting, settling, the receipt — is ours.
  *
  * The record is what we render, not the SDK's bridged status. It is the same data
  * either way, but the backend's copy is signed (or pulled from Yodl's API), it
  * survives the app being backgrounded mid-payment, and it is still there when the
  * user opens the payment again a day later.
  *
+ * The three props that shape the hosted surface — the submit policy, the ground
+ * colour and the loader — are one decision: this screen owns both of the
+ * transitions the user sees. Yodl does not move itself when a transaction lands,
+ * and it does not draw the first thing on screen.
+ *
  * The `qrData` guard stays load-bearing: `<YodlPayment>` renders *nothing* for a QR
  * it doesn't recognise, so an unguarded render is a blank screen, not an error.
  */
 
+import { brand } from '@nightmarket/theme';
 import { isPaymentQr, YodlPayment } from '@yodlpay/react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { api } from '~/api/client';
-import { invalidateWalletData } from '~/api/hooks';
+import { invalidateWalletData, seedPendingPayment } from '~/api/hooks';
 import { debug, warn } from '~/lib/log';
 import { Button } from '~/ui/Button';
 import { Gate } from '~/ui/Gate';
 import { IconFinder } from '~/ui/Icon';
 import { Txt } from '~/ui/Txt';
 import { useColors } from '~/ui/theme';
+import { HostedLoading } from '~/yodl/HostedLoading';
 import { useEmailAttestation } from '~/yodl/useEmailAttestation';
 import { YodlHost } from '~/yodl/YodlHost';
+import { FROM_PAY } from './_layout';
 
 export default function Pay() {
   const { qr } = useLocalSearchParams<{ qr?: string }>();
@@ -76,23 +84,24 @@ function PaymentSurface({
 
   const handleTransactionSent = useCallback(
     (txHash: string) => {
-      // Recorded *before* we navigate, and the failure is still swallowed: the
-      // status screen reads the record by identity, so arriving ahead of the POST
-      // would show "we don't have this one" for a payment that is in flight. The
-      // hash exists either way, so we leave either way.
+      seedPendingPayment({ chainId, txHash, wallet: address });
+
+      router.replace({
+        pathname: '/(market)/payment/[chainId]/[txHash]',
+        // Not read by the screen — the layout reads it to pick the presentation.
+        params: { chainId, txHash, from: FROM_PAY },
+      });
+
+      // Fire and forget: neither the promise nor the query client belongs to this
+      // screen, so both outlive the navigation above. `api.recordIntent`
+      // documents what a lost intent costs.
       void api
         .recordIntent({ chainId, txHash, wallet: address })
         // A payment now exists that the feed has never heard of. This is one of
         // the two moments the app knows the server changed, and saying so here is
         // what replaced refetching every screen whenever it came back into view.
         .then(invalidateWalletData)
-        .catch((cause) => warn('pay', 'intent not recorded', cause))
-        .finally(() =>
-          router.replace({
-            pathname: '/(market)/payment/[chainId]/[txHash]',
-            params: { chainId, txHash },
-          }),
-        );
+        .catch((cause) => warn('pay', 'intent not recorded', cause));
     },
     [address, chainId],
   );
@@ -101,7 +110,16 @@ function PaymentSurface({
     <View style={styles.fill}>
       <YodlPayment
         qrData={qr}
+        // A hosted build that predates this policy drops the unknown param and
+        // navigates as it always has: a duplicated transition, not a broken
+        // payment.
+        navigateOnSubmit="never"
         style={styles.fill}
+        // Ink in both schemes, matching the shell the hosted surface paints.
+        backgroundColor={brand.surface}
+        renderLoading={() => <HostedLoading />}
+        // When this lands is the only view we have of real-network boot time.
+        onReady={() => debug('pay', 'hosted UI ready')}
         // A wallet with no Yodl account gets asked to register right here, in the
         // middle of paying — which is the moment an OTP hurts most, since there
         // is a merchant waiting. Supplying the fetcher on this surface is what

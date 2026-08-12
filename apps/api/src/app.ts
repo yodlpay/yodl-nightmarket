@@ -11,6 +11,7 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import type { Env } from './env';
 import { AttestationSigner } from './lib/attestation';
+import { privySessionEmail } from './lib/privy';
 import type { PaymentStore } from './lib/store';
 import { SumsubKycClient } from './lib/sumsub';
 import { attestationRoutes, jwksRoute } from './routes/attestation';
@@ -47,6 +48,17 @@ export function createApp({ env, store }: AppDeps) {
         })
       : null;
 
+  /**
+   * The other half of attestation, and the one that decides *whose* email gets
+   * signed. Same rule as the signer: unset credentials switch the capability off
+   * rather than stopping the boot. Both halves are required — a signer with no way
+   * to authenticate the caller would sign for anyone who asked.
+   */
+  const resolveVerifiedEmail =
+    env.PRIVY_APP_ID && env.PRIVY_APP_SECRET
+      ? privySessionEmail({ appId: env.PRIVY_APP_ID, appSecret: env.PRIVY_APP_SECRET })
+      : undefined;
+
   const app = new Hono();
 
   if (env.NODE_ENV !== 'test') app.use('*', logger());
@@ -68,16 +80,16 @@ export function createApp({ env, store }: AppDeps) {
       payments: store.size,
       capabilities: {
         webhooks: true,
-        emailAttestation: signer !== null,
         kyc: sumsub !== null,
+        emailAttestation: signer !== null && resolveVerifiedEmail !== undefined,
       },
     }),
   );
 
   app.route('/webhooks', webhookRoutes(env, store));
   app.route('/v1', paymentRoutes(store));
-  app.route('/v1/attestations', attestationRoutes({ signer }));
   app.route('/v1/kyc', kycRoutes(sumsub));
+  app.route('/v1/attestations', attestationRoutes({ signer, resolveVerifiedEmail }));
   app.route('/.well-known', jwksRoute(signer));
 
   app.notFound((c) => c.json({ error: 'Not found' }, 404));

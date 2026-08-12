@@ -31,7 +31,7 @@ import type {
   PaymentState,
   Stats,
 } from '@nightmarket/shared';
-import { isNewerSnapshot, isSameAddress, paymentKey } from '@nightmarket/shared';
+import { isNewerSnapshot, isSameAddress, paymentKey, pendingPayment } from '@nightmarket/shared';
 import { sumDecimalStrings } from './decimal';
 
 export interface RecordIntentInput {
@@ -103,18 +103,7 @@ export class PaymentStore {
           intentAt: existing.intentAt ?? now,
           attribution: existing.version === null ? 'pending' : 'matched',
         }
-      : {
-          chainId: input.chainId,
-          txHash: input.txHash.toLowerCase(),
-          version: null,
-          state: null,
-          recipient: input.memo ? { title: input.memo, subtitle: null } : null,
-          invoice: null,
-          attribution: 'pending',
-          wallet: input.wallet.toLowerCase(),
-          intentAt: now,
-          notifiedAt: null,
-        };
+      : pendingPayment({ ...input, intentAt: now });
 
     this.#records.set(key, record);
     this.#persist();

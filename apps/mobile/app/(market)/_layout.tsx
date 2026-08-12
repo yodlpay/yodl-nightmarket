@@ -19,6 +19,9 @@ import { Screen } from '~/ui/Screen';
 import { Txt } from '~/ui/Txt';
 import { useColors } from '~/ui/theme';
 
+/** The route param that tells this layout a receipt arrived by replacing `pay`. */
+export const FROM_PAY = 'pay';
+
 function Loading() {
   const colors = useColors();
 
@@ -78,11 +81,16 @@ export default function MarketLayout() {
             keeping the two presentations apart is what tells the user whether
             they have left the app's own chrome. */}
         <Stack.Screen name="top-up" options={{ presentation: 'modal' }} />
-        {/* Pushed, like activity itself. A payment record is something you may
-            want to sit with rather than glance at and flick away. */}
+        {/* Pushed like activity itself — except when it replaces `pay`, where a
+            card would mean dismissing a full-screen modal and pushing a card in
+            the same commit. Matching the presentation makes it one crossfade. */}
         <Stack.Screen
           name="payment/[chainId]/[txHash]"
-          options={{ animation: 'slide_from_right' }}
+          options={({ route }) =>
+            (route.params as { from?: string } | undefined)?.from === FROM_PAY
+              ? { presentation: 'fullScreenModal', animation: 'fade' }
+              : { animation: 'slide_from_right' }
+          }
         />
         <Stack.Screen name="pay" options={{ presentation: 'fullScreenModal', animation: 'fade' }} />
         <Stack.Screen name="onboard" options={{ presentation: 'fullScreenModal' }} />

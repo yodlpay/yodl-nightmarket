@@ -74,6 +74,41 @@ export const nightmarketPaymentSchema = z.object({
 });
 export type NightmarketPayment = z.infer<typeof nightmarketPaymentSchema>;
 
+/**
+ * The record an intent creates on its own, before any delivery has landed.
+ *
+ * One definition rather than two that agree today: the API writes this when an
+ * intent arrives for a hash it has never seen, and the app writes the same
+ * record into its query cache so the receipt has something to read before the
+ * POST that creates the real one has finished.
+ *
+ * `intentAt` is the caller's because the two callers have different clocks — the
+ * server stamps its own, the app the phone's, and the server's replaces the
+ * app's the moment the real GET answers. Casing is the store's, which is what
+ * everything downstream compares against.
+ */
+export function pendingPayment(input: {
+  chainId: string;
+  txHash: string;
+  wallet: string;
+  intentAt: string;
+  /** Optional local echo of what the user was paying, for the pending row. */
+  memo?: string;
+}): NightmarketPayment {
+  return {
+    chainId: input.chainId,
+    txHash: input.txHash.toLowerCase(),
+    version: null,
+    state: null,
+    recipient: input.memo ? { title: input.memo, subtitle: null } : null,
+    invoice: null,
+    attribution: 'pending',
+    wallet: input.wallet.toLowerCase(),
+    intentAt: input.intentAt,
+    notifiedAt: null,
+  };
+}
+
 export const paymentPageSchema = z.object({
   payments: z.array(nightmarketPaymentSchema),
   nextCursor: z.string().nullable(),
@@ -120,10 +155,17 @@ export type ApiError = z.infer<typeof errorSchema>;
  * Backs `<YodlSignup fetchEmailAttestation>`: if our backend has already verified
  * this user's email, it mints a short-lived JWT asserting that and the user skips
  * Yodl's OTP. Minting is server-side only — the signing key never reaches a device.
+ *
+ * The wallet is the whole body. There was an optional `email` here once, and the
+ * route signed it, which meant any caller could assert any email for any wallet.
+ * The email now comes from the caller's Privy session and the body has no say in
+ * it, so the field is gone rather than merely ignored — a schema that still named
+ * it would be documenting a channel that does not exist. An older client that
+ * keeps sending one is unaffected: Zod strips unknown keys, so the value is
+ * dropped at the door instead of 400ing the request.
  */
 export const attestationRequestSchema = z.object({
   walletAddress: addressSchema,
-  email: z.string().email().optional(),
 });
 export type AttestationRequest = z.infer<typeof attestationRequestSchema>;
 

@@ -83,7 +83,14 @@ export default function PaymentDetail() {
   // A 404 is the backend saying it has never heard of this pair, which is a
   // different thing from the backend being unreachable and deserves a different
   // screen. The status code is the only thing that separates them.
-  if (payment.error instanceof ApiError && payment.error.status === 404) return <NotFound />;
+  //
+  // Gated on having nothing to show: `pay` seeds the record and navigates before
+  // the POST that creates it lands, so a 404 with data present is that race, not
+  // a payment we have never heard of.
+  if (!payment.data && payment.error instanceof ApiError && payment.error.status === 404)
+    return <NotFound />;
+
+  const stale = payment.data && payment.error ? <StaleNotice error={payment.error} /> : null;
 
   return (
     <Screen>
@@ -92,6 +99,7 @@ export default function PaymentDetail() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+        {stale}
         {payment.data ? (
           <Detail payment={payment.data} />
         ) : payment.error ? (
@@ -105,6 +113,23 @@ export default function PaymentDetail() {
         )}
       </ScrollView>
     </Screen>
+  );
+}
+
+/**
+ * A seeded record renders the same whether the backend answered or never picked
+ * up, so this says which. A 404 means we reached it and the intent never landed,
+ * which is a different sentence from not reaching it at all.
+ */
+function StaleNotice({ error }: { error: Error }) {
+  const unrecorded = error instanceof ApiError && error.status === 404;
+
+  return (
+    <Txt variant="small" tone="muted">
+      {unrecorded
+        ? "The backend hasn't recorded this payment yet, so this may not fill in. The transaction itself is unaffected."
+        : 'Not reaching the backend right now, so this may be behind.'}
+    </Txt>
   );
 }
 
@@ -142,6 +167,11 @@ function NotFound() {
  * No spinner, matching the rest of the app: a placeholder the shape of the
  * content tells you what is coming, and a spinner tells you only that something
  * is happening.
+ *
+ * Unreachable from `pay`, which seeds the record before it navigates — and still
+ * the honest first frame for the two arrivals that have nothing cached: a deep
+ * link, and a tap on a feed row, whose data is filed under the feed's key rather
+ * than this one.
  */
 function Skeleton() {
   const colors = useColors();
