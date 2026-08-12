@@ -7,8 +7,11 @@
  * mounted with `null`s, and mounting them with placeholder values would point the
  * hosted UI at the wrong chain.
  *
- * So this renders `fallback` until the wallet is genuinely ready and only then
- * mounts the provider. Everything below it can assume a connected wallet.
+ * So this renders `HostedLoading` until the wallet is genuinely ready and only
+ * then mounts the provider. Everything below it can assume a connected wallet.
+ *
+ * That is the same component `pay` hands the SDK as `renderLoading`: the wallet
+ * wait and the hosted surface's own boot are one pause to the user.
  *
  * The theme is passed here rather than per component: `theme` and `themeMode` on
  * the provider are defaults for every hosted component beneath it, so payment,
@@ -16,11 +19,12 @@
  * chrome for free.
  */
 
-import { dark, nightmarketYodlTheme } from '@nightmarket/theme';
+import { brand, nightmarketYodlTheme, space } from '@nightmarket/theme';
 import { YodlProvider, type YodlTheme } from '@yodlpay/react-native';
 import type { ReactNode } from 'react';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useWallet } from '~/wallet/useWallet';
+import { HostedLoading } from './HostedLoading';
 import { sdk } from './sdk';
 import { useYodl7702Provider } from './use7702Provider';
 
@@ -36,10 +40,8 @@ const theme: YodlTheme = nightmarketYodlTheme;
 
 export function YodlHost({
   children,
-  fallback,
 }: {
   children: (wallet: { address: string; chainId: number }) => ReactNode;
-  fallback?: ReactNode;
 }) {
   const { provider, address, chainId, isConnected, error } = useWallet();
 
@@ -50,30 +52,14 @@ export function YodlHost({
   const yodlProvider = useYodl7702Provider(provider);
 
   if (!isConnected || !yodlProvider || !address || chainId === null) {
+    // The centring lives here rather than in `HostedLoading`: on the pay path
+    // that component is drawn inside the SDK's overlay, which is already a
+    // centred fill. This is also the only place a wallet that failed to
+    // provision can be seen, now that no screen asks anyone to create one.
     return (
-      fallback ?? (
-        <View
-          style={{
-            flex: 1,
-            backgroundColor: dark.bg,
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 24,
-          }}
-        >
-          {/*
-            A wallet that failed to provision never arrives, so a spinner here is
-            a lie that lasts forever. It is the only place that failure can be
-            seen now that no screen asks anyone to create a wallet by hand — and
-            the message is Privy's own, which names the cause.
-          */}
-          {error ? (
-            <Text style={{ color: dark.error, textAlign: 'center' }}>{error.message}</Text>
-          ) : (
-            <ActivityIndicator color={dark.accent} />
-          )}
-        </View>
-      )
+      <View style={styles.wait}>
+        <HostedLoading error={error} />
+      </View>
     );
   }
 
@@ -93,3 +79,17 @@ export function YodlHost({
     </YodlProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  /**
+   * The shell the hosted surface is about to paint, not dark mode's ground —
+   * same hex, but this frame is Ink in a light-mode session too.
+   */
+  wait: {
+    flex: 1,
+    backgroundColor: brand.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: space.xl,
+  },
+});

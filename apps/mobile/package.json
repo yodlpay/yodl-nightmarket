@@ -22,7 +22,7 @@
     "@privy-io/expo": "^0.70.6",
     "@privy-io/expo-native-extensions": "0.0.12",
     "@tanstack/react-query": "5.101.4",
-    "@yodlpay/react-native": "^0.7.0",
+    "@yodlpay/react-native": "^0.8.0",
     "@yodlpay/react-native-eip-7702-provider": "^0.3.0",
     "expo": "~57.0.10",
     "expo-apple-authentication": "~57.0.1",

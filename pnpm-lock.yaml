@@ -85,8 +85,8 @@ importers:
         specifier: 5.101.4
         version: 5.101.4(react@19.2.3)
       '@yodlpay/react-native':
-        specifier: ^0.7.0
-        version: 0.7.0(react-native-webview@13.16.1(react-native@0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.86.2(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3))(react-native@0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.86.2(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)
+        specifier: ^0.8.0
+        version: 0.8.0(react-native-webview@13.16.1(react-native@0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.86.2(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3))(react-native@0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.86.2(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)
       '@yodlpay/react-native-eip-7702-provider':
         specifier: ^0.3.0
         version: 0.3.0(react-native@0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.86.2(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(typescript@6.0.3)(zod@4.4.3)
@@ -1700,8 +1700,8 @@ packages:
     peerDependencies:
       react-native: '>=0.72.0'
 
-  '@yodlpay/react-native@0.7.0':
-    resolution: {integrity: sha512-cS/oo96JeKwt7bcbmCeHovo+q/f7F6eloU2ghDbAKM3icGlcYTqFHyzIaVqAhbHaE/rN5pjzwTM8lYjY6sP2vA==}
+  '@yodlpay/react-native@0.8.0':
+    resolution: {integrity: sha512-rwr82Rl73pvu6eeQm7n7+InHi1VUUzI6AJE9JW8yKn+c5JObUQ8cWtZxhGaaRZtxYtcbsdAKCAEyJqnorTkcKw==}
     engines: {node: '>=18'}
     peerDependencies:
       react: '>=18.0.0'
@@ -5565,7 +5565,7 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@yodlpay/react-native@0.7.0(react-native-webview@13.16.1(react-native@0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.86.2(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3))(react-native@0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.86.2(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)':
+  '@yodlpay/react-native@0.8.0(react-native-webview@13.16.1(react-native@0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.86.2(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3))(react-native@0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.86.2(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)':
     dependencies:
       react: 19.2.3
       react-native: 0.86.2(@babel/core@7.29.7)(@react-native/metro-config@0.86.2(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3)

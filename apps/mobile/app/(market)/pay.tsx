@@ -11,10 +11,16 @@
  * survives the app being backgrounded mid-payment, and it is still there when the
  * user opens the payment again a day later.
  *
+ * The three props that shape the hosted surface — the submit policy, the ground
+ * colour and the loader — are one decision: this screen owns both of the
+ * transitions the user sees. Yodl does not move itself when a transaction lands,
+ * and it does not draw the first thing on screen.
+ *
  * The `qrData` guard stays load-bearing: `<YodlPayment>` renders *nothing* for a QR
  * it doesn't recognise, so an unguarded render is a blank screen, not an error.
  */
 
+import { brand } from '@nightmarket/theme';
 import { isPaymentQr, YodlPayment } from '@yodlpay/react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
@@ -27,6 +33,7 @@ import { Gate } from '~/ui/Gate';
 import { IconFinder } from '~/ui/Icon';
 import { Txt } from '~/ui/Txt';
 import { useColors } from '~/ui/theme';
+import { HostedLoading } from '~/yodl/HostedLoading';
 import { useEmailAttestation } from '~/yodl/useEmailAttestation';
 import { YodlHost } from '~/yodl/YodlHost';
 import { FROM_PAY } from './_layout';
@@ -103,7 +110,16 @@ function PaymentSurface({
     <View style={styles.fill}>
       <YodlPayment
         qrData={qr}
+        // A hosted build that predates this policy drops the unknown param and
+        // navigates as it always has: a duplicated transition, not a broken
+        // payment.
+        navigateOnSubmit="never"
         style={styles.fill}
+        // Ink in both schemes, matching the shell the hosted surface paints.
+        backgroundColor={brand.surface}
+        renderLoading={() => <HostedLoading />}
+        // When this lands is the only view we have of real-network boot time.
+        onReady={() => debug('pay', 'hosted UI ready')}
         // A wallet with no Yodl account gets asked to register right here, in the
         // middle of paying — which is the moment an OTP hurts most, since there
         // is a merchant waiting. Supplying the fetcher on this surface is what
