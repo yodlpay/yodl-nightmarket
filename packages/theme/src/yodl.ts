@@ -16,6 +16,7 @@
  */
 
 import { brand, dark, light } from './palette';
+import { radius } from './tokens';
 
 /**
  * Structural mirror of `YodlTheme` from `@yodlpay/react-native`.
@@ -55,8 +56,14 @@ export interface YodlThemeImages {
   loading?: string;
 }
 
+/** The faces the hosted UI ships. Instrument Sans is not among them. */
+export type YodlThemeFontName = 'system' | 'inter' | 'geist' | 'mono';
+
 export interface YodlThemeShape {
   name?: string;
+  font?: YodlThemeFontName;
+  radiusControl?: string;
+  radiusSurface?: string;
   light?: YodlThemeTokens;
   dark?: YodlThemeTokens;
   images?: { light?: YodlThemeImages; dark?: YodlThemeImages };
@@ -82,6 +89,25 @@ export interface YodlThemeShape {
  */
 export const nightmarketYodlTheme: YodlThemeShape = {
   name: 'nightmarket',
+
+  /**
+   * Shape and typography, which the hosted UI takes as top-level keys because
+   * neither is a colour and neither varies by mode.
+   *
+   * `radiusControl` is our `radius.control`, and `radiusSurface` our
+   * `radius.card`. They differ on purpose: stock Yodl pills every control,
+   * while we reserve `radius.full` for the one primary CTA on a screen. Setting
+   * only `radiusControl` would pull cards down to 14 with the buttons, which is
+   * the case the second key exists for.
+   *
+   * `font` is the closest the hosted enum gets to Instrument Sans, which it
+   * does not ship — a font bundled in this app is not visible to the WebView it
+   * hosts, so the enum is the honest ceiling. Geist is the nearest grotesque;
+   * the seam is narrower than Inter but it is still a seam.
+   */
+  font: 'geist',
+  radiusControl: `${radius.control}px`,
+  radiusSurface: `${radius.card}px`,
 
   dark: {
     bg: dark.bg,
@@ -130,13 +156,26 @@ export const nightmarketYodlTheme: YodlThemeShape = {
     error: light.error,
   },
 
-  // `images` is left off deliberately. The slots take hosted https URLs — an
-  // .mp4 loops as video, anything else renders as an <img>, and a URL that
-  // isn't really an image fails silently as a broken image. Point these at a
-  // CDN you control once you have one:
-  //
-  // images: {
-  //   dark: { loading: 'https://cdn.example.com/nightmarket-loading-dark.mp4' },
-  //   light: { loading: 'https://cdn.example.com/nightmarket-loading-light.mp4' },
-  // },
+  /**
+   * The hosted surfaces the app doesn't draw itself. An `.mp4` loops as video,
+   * anything else renders as an `<img>`, and a URL that isn't really an image
+   * fails silently as a broken image — so these are worth opening once after
+   * any redeploy rather than trusting the build.
+   *
+   * `payBackground` is set on both modes even though `brandSurface` is
+   * mode-invariant: the slots are declared per mode, and a light session still
+   * paints the pay surface in Ink.
+   */
+  images: {
+    dark: {
+      loading: 'https://nightmarket-theme-assets.vercel.app/loading-arc-dark.mp4',
+      processing: 'https://nightmarket-theme-assets.vercel.app/processing-dark.mp4',
+      payBackground: 'https://nightmarket-theme-assets.vercel.app/pay-background-dark.png',
+    },
+    light: {
+      loading: 'https://nightmarket-theme-assets.vercel.app/loading-arc-light.mp4',
+      processing: 'https://nightmarket-theme-assets.vercel.app/processing-light.mp4',
+      payBackground: 'https://nightmarket-theme-assets.vercel.app/pay-background-light.png',
+    },
+  },
 };

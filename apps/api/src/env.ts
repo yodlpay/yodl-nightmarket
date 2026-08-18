@@ -91,7 +91,7 @@ const envSchema = z.object({
   /** The recipient Sumsub clientId share tokens are minted for — Yodl's tenant. */
   SUMSUB_SHARE_FOR_CLIENT_ID: z.string().default('yodlpay.com'),
 
- /**
+  /**
    * Privy, server side — who the attestation route believes the caller is.
    *
    * The app id is the same public identifier the app ships as
