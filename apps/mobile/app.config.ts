@@ -77,6 +77,14 @@ const config: ExpoConfig = {
     'expo-secure-store',
     'expo-web-browser',
     [
+      // Drives one thing: the ambient loop behind `HostedLoading`. Both flags are
+      // off because that video is muted wallpaper, not media — background
+      // playback would keep it decoding after the app is backgrounded, and PiP
+      // would offer to float a loading screen over the user's home screen.
+      'expo-video',
+      { supportsBackgroundPlayback: false, supportsPictureInPicture: false },
+    ],
+    [
       'expo-camera',
       {
         cameraPermission:
