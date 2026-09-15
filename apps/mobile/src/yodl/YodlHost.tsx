@@ -1,9 +1,10 @@
 /**
- * `<YodlProvider>`, wired to Privy, with the wait states handled once.
+ * `<YodlProvider>`, wired to the embedded wallet, with the wait states handled
+ * once.
  *
  * All three hosted surfaces need the same four things — the SDK instance, a live
  * provider, a live address and a live chain id — and all three have the same
- * problem while Privy is still resolving them: the Yodl components can't be
+ * problem while the wallet is still coming up: the Yodl components can't be
  * mounted with `null`s, and mounting them with placeholder values would point the
  * hosted UI at the wrong chain.
  *
@@ -46,9 +47,10 @@ export function YodlHost({
   const { provider, address, chainId, isConnected, error } = useWallet();
 
   // The wrapper goes on here rather than in `useWallet` because it is a Yodl
-  // concern, not a Privy one: it exists solely so the hosted UI's EIP-5792 batch
-  // can execute. The balance reads elsewhere in the app use the raw Privy
-  // provider from `useWallet` and have no business behind a batching shim.
+  // concern, not a wallet one: it exists solely so the hosted UI's EIP-5792 batch
+  // can execute — Openfort's provider refuses `wallet_sendCalls` outright for an
+  // EOA. The balance reads elsewhere in the app use the raw embedded provider
+  // from `useWallet` and have no business behind a batching shim.
   const yodlProvider = useYodl7702Provider(provider);
 
   if (!isConnected || !yodlProvider || !address || chainId === null) {

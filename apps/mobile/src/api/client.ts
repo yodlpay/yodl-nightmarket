@@ -110,14 +110,43 @@ export const api = {
   },
 
   /**
+   * A single-use Shield encryption session, so the embedded signer can build or
+   * recover its key share without anybody typing a password.
+   *
+   * Shield's own credentials — the secret key and the encryption share — never
+   * leave `apps/api`; this route is the only thing the device is allowed to ask
+   * for, and it answers only for the caller named by the bearer token. Openfort's
+   * alternative wiring, `createEncryptedSessionEndpoint`, posts to a URL with no
+   * `Authorization` header at all, which would leave the route minting wallet
+   * recovery material for anyone who knows its address.
+   *
+   * Every failure throws. The caller is the SDK's `getEncryptionSession`
+   * callback, where a rejection is the only way to say "no wallet today" — a
+   * resolved empty string is taken as a session id and fails later, somewhere
+   * far less legible.
+   */
+  async encryptionSession(accessToken: string): Promise<string> {
+    const body = await request(routes.encryptionSession, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    const { session } = body as { session?: unknown };
+    if (typeof session !== 'string' || session === '') {
+      throw new Error('The encryption-session route answered without a session id.');
+    }
+    return session;
+  },
+
+  /**
    * Mint an email attestation so the user can skip Yodl's OTP during signup.
    *
    * The body names a wallet and nothing else. The email is not ours to propose —
-   * the backend verifies the Privy access token on the `Authorization` header and
-   * signs the address Privy has on file for whoever that token belongs to. The
-   * token is passed in rather than read here because this module is a plain one
-   * and `getAccessToken` is a hook; threading it down from `useEmailAttestation`
-   * keeps the client free of React and of Privy both.
+   * the backend verifies the Openfort access token on the `Authorization` header
+   * and signs the address Openfort has on file for whoever that token belongs to.
+   * The token is passed in rather than read here because this module is a plain
+   * one and `getAccessToken` is a hook; threading it down from
+   * `useEmailAttestation` keeps the client free of React and of Openfort both.
    *
    * Returns `null` on any failure — a missing attestation is a normal outcome
    * that costs the user one extra screen, never an error worth interrupting a

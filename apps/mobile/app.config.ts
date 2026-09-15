@@ -4,9 +4,9 @@ import type { ExpoConfig } from 'expo/config';
  * Nightmarket — Expo config.
  *
  * ⚠️ This app cannot run in Expo Go. `@yodlpay/react-native` renders the hosted
- * Yodl UI in `react-native-webview`, and Privy ships native modules of its own —
- * neither exists in Expo Go, which produces a crash or a blank screen rather than
- * a useful error. Build a development client:
+ * Yodl UI in `react-native-webview`, and Openfort renders a hidden WebView of its
+ * own to host the embedded signer — neither is in Expo Go, which produces a crash
+ * or a blank screen rather than a useful error. Build a development client:
  *
  *     pnpm --filter @nightmarket/mobile ios      # or: android
  *
@@ -45,14 +45,14 @@ const config: ExpoConfig = {
   // follows the device is exactly the seam this demo exists to avoid.
   userInterfaceStyle: 'automatic',
 
-  // Needed by expo-router for deep links, and by Privy for its OAuth return leg.
+  // Needed by expo-router for deep links, and by Openfort for its OAuth return leg.
   scheme: 'nightmarket',
 
   ios: {
     bundleIdentifier: 'me.yodl.nightmarket',
     supportsTablet: false,
     infoPlist: {
-      // The Yodl hosted UI and Privy both load over https; no cleartext needed.
+      // The Yodl hosted UI and Openfort both load over https; no cleartext needed.
       NSCameraUsageDescription:
         'Nightmarket uses the camera to scan merchant QR codes so you can pay them.',
     },

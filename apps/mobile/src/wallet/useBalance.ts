@@ -7,8 +7,8 @@
  * `/v1/wallets/:address/balance` endpoint, and it was rejected for a specific
  * reason rather than for effort: it puts an RPC dependency and a node key into a
  * backend that currently has neither, in order to serve a number the device is
- * already holding a provider for. Privy's EIP-1193 provider *is* an RPC
- * transport, and `viem` is already in the bundle.
+ * already holding a provider for. The embedded wallet's EIP-1193 provider *is* an
+ * RPC transport, and `viem` is already in the bundle.
  *
  * The read is one `balanceOf` against USDC on Base, and only on Base. USDC is
  * the token because it is what Yodl settles into, so "spendable" and "USDC

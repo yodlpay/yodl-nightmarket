@@ -7,7 +7,7 @@
  * the SDK afterwards.
  *
  * `fetchEmailAttestation` is the interesting prop. Our backend has already
- * verified this user's email (Privy's OTP is how they signed in), so it can mint
+ * verified this user's email (Openfort's OTP is how they signed in), so it can mint
  * a short-lived JWT asserting that and the user skips Yodl's own OTP. Every
  * failure mode of that path — a `null`, a throw, a timeout — is a silent fallback
  * to the normal code entry, never an error. Which is why the client returns

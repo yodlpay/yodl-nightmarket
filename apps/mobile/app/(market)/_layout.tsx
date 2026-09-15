@@ -1,7 +1,7 @@
 /**
  * Everything under `(market)` requires a signed-in user.
  *
- * `AuthBoundary` is Privy's guard: it renders `loading` while the session is
+ * `AuthBoundary` is Openfort's guard: it renders `loading` while the session is
  * being restored, `unauthenticated` when there is none, and the children when
  * there is. Putting it on the group layout rather than in each screen means a new
  * screen is protected by existing in the right folder — the failure mode of
@@ -12,7 +12,7 @@
  * them onto the stack would put our header logic in a fight with theirs.
  */
 
-import { AuthBoundary } from '@privy-io/expo';
+import { AuthBoundary } from '@openfort/react-native';
 import { Redirect, Stack } from 'expo-router';
 import { ActivityIndicator, View } from 'react-native';
 import { Screen } from '~/ui/Screen';
@@ -47,7 +47,7 @@ function AuthError({ error }: { error: Error }) {
       <View style={{ flex: 1, justifyContent: 'center', gap: 12 }}>
         <Txt variant="title">The market is closed</Txt>
         <Txt variant="body" tone="secondary">
-          Privy couldn't restore your session.
+          Openfort couldn't restore your session.
         </Txt>
         <Txt variant="mono" tone="error">
           {error.message}

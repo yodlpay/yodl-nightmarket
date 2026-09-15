@@ -27,17 +27,21 @@ config.resolver.nodeModulesPaths = [
 
 // Mark `browser` as an active export condition.
 //
-// Privy depends on `jose`, whose exports map offers `browser`, `import` and
-// `require` in that order. Without `browser` active, Metro takes `import` and
-// pulls in jose's *Node* build, which opens with `import * as crypto from
-// 'crypto'` — a module React Native does not have. The bundle then fails with
-// "Unable to resolve module crypto", several layers away from anything this app
-// wrote, which is a memorably unhelpful place to start debugging.
+// The wallet stack's packages ship Node and browser builds behind one exports
+// map, typically offering `browser`, `import` and `require` in that order. With
+// only Metro's default conditions active, `import` wins and pulls in a *Node*
+// build, which opens with something like `import * as crypto from 'crypto'` — a
+// module React Native does not have. The bundle then fails with "Unable to
+// resolve module crypto", several layers away from anything this app wrote,
+// which is a memorably unhelpful place to start debugging. `jose` was the package
+// that taught us this, and Openfort's own Metro guidance still special-cases it
+// with a `resolveRequest` hook for the same reason.
 //
 // Conditions are a set, not a priority list: precedence comes from the order of
 // the keys in each package's own exports map. Adding `browser` simply makes the
 // browser branch eligible, and every well-formed exports map lists it before the
-// Node branches.
+// Node branches — so this says the same thing once, for every package that ships
+// a browser build, and leaves the resolver alone.
 config.resolver.unstable_conditionNames = ['react-native', 'browser', 'require', 'import'];
 
 module.exports = config;

@@ -1,5 +1,5 @@
 /**
- * Privy's embedded wallet, in the shape `<YodlProvider>` wants.
+ * Openfort's embedded wallet, in the shape `<YodlProvider>` wants.
  *
  * Yodl asks for three things — an EIP-1193 provider, the connected address, and
  * the chain id — and the docs are emphatic that the last two must be the wallet's
@@ -8,38 +8,56 @@
  *   "The SDK pushes `accountsChanged` and `chainChanged` into the hosted UI as
  *    they change, so a stale `chainId` leaves the UI on the wrong chain."
  *
- * Privy gives us the provider through an async `getProvider()` and the chain id
- * only over RPC, so this hook is the small amount of glue that turns that into
- * something renderable. It subscribes to the provider's own events rather than
- * re-reading on an interval — the provider is the source of truth, and polling it
- * would still be a frame behind on the render that matters.
+ * Two of the three arrive as a discriminated union on `status`: the provider and
+ * the active wallet exist only on the `connected` variant, so the type system
+ * refuses to let either be read early. The chain id is still only available over
+ * RPC, so this hook reads it once and then follows the provider's own events
+ * rather than re-reading on a timer — the provider is the source of truth, and
+ * polling it would still be a frame behind on the render that matters.
  *
- * ── Nobody creates a wallet by hand any more ──────────────────────────────────
+ * ── Somebody has to ask for the wallet ────────────────────────────────────────
  *
- * There used to be a `create()` here, an `isCreating` flag beside it, a
- * `needsWallet` boolean, and a full screen in the scanner asking the user to
- * press a button captioned "Create my wallet" — for an account they had just
- * created, holding a key they will never see, in an app whose entire premise is
- * that there is nothing to set up.
+ * Openfort never creates or recovers a wallet by itself. There is no
+ * create-on-login setting to turn on: `create()` mints one, `setActive()`
+ * recovers the key share of one that already exists, and until an app calls one
+ * of them a signed-in user simply has none. No screen here is going to ask —
+ * pressing "Create my wallet" is a step with no decision in it, for an account
+ * the user made a second ago, holding a key they will never see — so the effect
+ * at the bottom does it once per user and says nothing about it.
  *
- * Privy provisions it at login instead: `config.embedded.ethereum.createOnLogin`
- * in `app/_layout.tsx`. That setting reaches the core SDK through every login
- * path this app can take, and the wallet arrives with the user object.
+ * All the difficulty is in *when*, and each of the four conditions is
+ * load-bearing:
  *
- * The effect below is the one case that setting cannot reach: a session that was
- * already signed in before the config existed never logs in again, so nothing
- * ever provisions it. It asks once per user and only when Privy says there is
- * none — `create()` without `createAdditional` is a no-op for a user who already
- * has one, but the guard means we don't call it to find that out.
+ *  - `listedFor === user.id`. The SDK lists this user's wallets from the server
+ *    on mount, and until that lands `wallets` is `[]`, which is indistinguishable
+ *    from a user who genuinely has none. Creating inside that window mints a
+ *    second wallet for somebody who already had one. `fetching-wallets` is the
+ *    status the SDK publishes while the list is in flight, so having *seen* it is
+ *    what makes a later `[]` mean what it says.
+ *  - `embeddedState === EMBEDDED_SIGNER_NOT_CONFIGURED`. The SDK's own words for
+ *    "signed in, and this device holds no key share". It rules out the window
+ *    where a returning session is still reconnecting its signer — which reads as
+ *    wallet-less right up until it doesn't.
+ *  - `status === 'disconnected'`. Nothing of ours is already in flight.
+ *  - `asked.current !== user.id`. Once per user. Both this and `listedFor` are
+ *    keyed on the user id rather than being booleans, because signing out and
+ *    back in as somebody else is a different question: a flag that only flips
+ *    once would leave the second account with no wallet and nothing left to ask
+ *    with.
  */
 
-import { getUserEmbeddedEthereumWallet, useEmbeddedEthereumWallet, usePrivy } from '@privy-io/expo';
+import {
+  EmbeddedState,
+  useEmbeddedEthereumWallet,
+  useOpenfortContext,
+  useUser,
+} from '@openfort/react-native';
 import type { EIP1193Provider } from '@yodlpay/react-native';
 import { useEffect, useRef, useState } from 'react';
-import { hexToNumber, isHex } from 'viem';
+import { type Hex, hexToNumber, isHex } from 'viem';
 
 export interface WalletState {
-  /** Signing and RPC transport. `null` until Privy hands it over. */
+  /** Signing and RPC transport. `null` until the embedded wallet connects. */
   provider: EIP1193Provider | null;
   address: string | null;
   chainId: number | null;
@@ -78,88 +96,98 @@ const toChainId = (value: unknown): number | null => {
 };
 
 export function useWallet(): WalletState {
-  const { user } = usePrivy();
-  const { wallets, create } = useEmbeddedEthereumWallet();
-  const wallet = wallets[0];
+  const { user } = useUser();
+  const { embeddedState } = useOpenfortContext();
+  const ethereum = useEmbeddedEthereumWallet();
+  const { status, wallets, create, setActive } = ethereum;
 
-  const [provider, setProvider] = useState<EIP1193Provider | null>(null);
-  const [address, setAddress] = useState<string | null>(null);
+  const connected = ethereum.status === 'connected' ? ethereum : null;
+  // One object under two views. The event surface below is declared on
+  // Openfort's, and the Yodl-facing type declares only `request` — it uses the
+  // provider purely as transport and has no business with the events.
+  const embedded = connected?.provider ?? null;
+  const provider = embedded as unknown as EIP1193Provider | null;
+  const address = connected?.activeWallet.address ?? null;
+
   const [chainId, setChainId] = useState<number | null>(null);
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
-    if (!wallet) {
-      setProvider(null);
-      setAddress(null);
+    if (!embedded) {
       setChainId(null);
       return;
     }
 
-    // `cancelled` matters here: getProvider() is async and the effect can be torn
-    // down mid-flight (logout, wallet switch). Without the guard a resolved
-    // promise from the previous wallet writes its provider over the current one.
+    // `cancelled` matters here: the read is async and the effect can be torn down
+    // mid-flight (sign-out, wallet switch). Without the guard a resolved promise
+    // from the previous provider writes its chain over the current one.
     let cancelled = false;
-    let active: EIP1193Provider | null = null;
-    const onChainChanged = (next: unknown) => setChainId(toChainId(next));
-    const onAccountsChanged = (accounts: unknown) => {
-      const [first] = Array.isArray(accounts) ? accounts : [];
-      setAddress(typeof first === 'string' ? first : null);
-    };
 
-    void (async () => {
+    const readChainId = async () => {
       try {
-        const next = await wallet.getProvider();
-        if (cancelled) return;
-
-        active = next as unknown as EIP1193Provider;
-        setProvider(active);
-        setAddress(wallet.address);
-
-        const current = await next.request({ method: 'eth_chainId' });
-        if (cancelled) return;
-        setChainId(toChainId(current));
-
-        // Privy's provider is a full EIP-1193 emitter. Typed loosely because the
-        // Yodl-facing `EIP1193Provider` only declares `request` — it uses the
-        // provider purely as transport and does not need the event surface.
-        next.on('chainChanged', onChainChanged);
-        next.on('accountsChanged', onAccountsChanged);
+        const current = await embedded.request({ method: 'eth_chainId' });
+        if (!cancelled) setChainId(toChainId(current));
       } catch (cause) {
         if (!cancelled) setError(cause instanceof Error ? cause : new Error(String(cause)));
       }
-    })();
+    };
+
+    const onChainChanged = (next: unknown) => setChainId(toChainId(next));
+    // Openfort emits this with `[]` when the signer detaches and `[address]` when
+    // it attaches, and the chain the provider answers with is resolved at the
+    // same moment. Asking again is cheaper than working out which of the two just
+    // happened.
+    const onAccountsChanged = () => void readChainId();
+
+    void readChainId();
+    embedded.on('chainChanged', onChainChanged);
+    embedded.on('accountsChanged', onAccountsChanged);
 
     return () => {
       cancelled = true;
-      const emitter = active as unknown as {
-        removeListener?: (event: string, listener: (...args: never[]) => void) => void;
-      } | null;
-      emitter?.removeListener?.('chainChanged', onChainChanged as never);
-      emitter?.removeListener?.('accountsChanged', onAccountsChanged as never);
+      embedded.removeListener('chainChanged', onChainChanged);
+      embedded.removeListener('accountsChanged', onAccountsChanged);
     };
-  }, [wallet]);
+  }, [embedded]);
 
-  /**
-   * The backstop for a session that predates `createOnLogin`.
-   *
-   * Asked of the *user object* rather than of `wallets`, and that is the part
-   * that matters: `getUserEmbeddedEthereumWallet` is the same check Privy's own
-   * login-time provisioning runs, and a login resolves only after that has
-   * finished — so a user who reaches this effect without a linked wallet is one
-   * the setting never got to, not one whose wallet is still in flight. Reading
-   * `wallets` instead would fire during that window and race Privy's own create.
-   *
-   * Keyed on the user id rather than a boolean: signing out and back in as
-   * somebody else is a different question, and a flag that only flips once would
-   * leave the second account without a wallet and nothing to ask again with.
-   */
+  // A failed create or recovery lands on the union rather than on the promise we
+  // awaited — the SDK keeps the message as a string — so it is read back out here
+  // and joins the one `YodlHost` renders.
+  const statusError = ethereum.status === 'error' ? ethereum.error : null;
+
+  useEffect(() => {
+    if (statusError) setError(new Error(statusError));
+  }, [statusError]);
+
+  /** The user whose wallet list we have watched the SDK finish. */
+  const [listedFor, setListedFor] = useState<string | null>(null);
+  /** The user we have already asked for, so the ask happens exactly once. */
   const asked = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!user || getUserEmbeddedEthereumWallet(user) || asked.current === user.id) return;
+    if (user && status === 'fetching-wallets') setListedFor(user.id);
+  }, [user, status]);
+
+  useEffect(() => {
+    if (!user || listedFor !== user.id || asked.current === user.id) return;
+    if (status !== 'disconnected') return;
+    if (embeddedState !== EmbeddedState.EMBEDDED_SIGNER_NOT_CONFIGURED) return;
+
     asked.current = user.id;
-    create().catch((cause) => setError(cause instanceof Error ? cause : new Error(String(cause))));
-  }, [user, create]);
+    const [existing] = wallets;
+
+    void (async () => {
+      try {
+        // `setActive` reads as a cheap local switch and is nothing of the kind:
+        // it is the key-share recovery round trip, which is exactly what a device
+        // that has never held this wallet needs.
+        if (existing) await setActive({ address: existing.address as Hex });
+        else await create();
+      } catch (cause) {
+        setError(cause instanceof Error ? cause : new Error(String(cause)));
+      }
+    })();
+  }, [user, listedFor, status, wallets, create, setActive, embeddedState]);
 
   return {
     provider,

@@ -158,7 +158,7 @@ export type ApiError = z.infer<typeof errorSchema>;
  *
  * The wallet is the whole body. There was an optional `email` here once, and the
  * route signed it, which meant any caller could assert any email for any wallet.
- * The email now comes from the caller's Privy session and the body has no say in
+ * The email now comes from the caller's Openfort session and the body has no say in
  * it, so the field is gone rather than merely ignored — a schema that still named
  * it would be documenting a channel that does not exist. An older client that
  * keeps sending one is unaffected: Zod strips unknown keys, so the value is
@@ -185,5 +185,6 @@ export const routes = {
   unmatched: '/v1/payments/unmatched',
   stats: '/v1/stats',
   emailAttestation: '/v1/attestations/email',
+  encryptionSession: '/v1/openfort/encryption-session',
   yodlWebhook: '/webhooks/yodl',
 } as const;
