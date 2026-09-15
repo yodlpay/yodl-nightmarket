@@ -91,23 +91,32 @@ const envSchema = z.object({
   /** The recipient Sumsub clientId share tokens are minted for — Yodl's tenant. */
   SUMSUB_SHARE_FOR_CLIENT_ID: z.string().default('yodlpay.com'),
 
- /**
-   * Privy, server side — who the attestation route believes the caller is.
+  /**
+   * Openfort, server side. Two capabilities, four values, and only two of them
+   * are secret.
    *
-   * The app id is the same public identifier the app ships as
-   * `EXPO_PUBLIC_PRIVY_APP_ID`; it is the `aud` of every access token Privy
-   * issues for this app, and it names the JWKS the tokens are signed against.
-   * The app secret is the one credential here that is genuinely secret — it is
-   * HTTP Basic against api.privy.io and it can read every user in the app, so it
-   * lives only in this process and never in the bundle.
+   * `OPENFORT_PUBLISHABLE_KEY` is who the attestation route believes the caller
+   * is: the same public identifier the app ships as
+   * `EXPO_PUBLIC_OPENFORT_PUBLISHABLE_KEY`, sent as `x-project-key` when we hand
+   * an access token back to Openfort to be resolved. Absent → the attestation
+   * route declines every request with a 404, because there is then no way to know
+   * whose email we would be signing. That is the same quiet decline an unset
+   * signing key produces, and it costs the user one OTP screen rather than
+   * breaking signup.
    *
-   * Both absent → the attestation route declines every request with a 404,
-   * because there is then no way to know whose email we would be signing. That
-   * is the same quiet decline an unset signing key produces, and it costs the
-   * user one OTP screen rather than breaking signup.
+   * The three Shield values mint the single-use encryption sessions that make the
+   * embedded wallet recoverable without a password. The publishable key is again
+   * the app's own; the secret key and the encryption share are the two genuine
+   * secrets in this block, and together they are equivalent to every user's
+   * wallet — so they live only in this process and never in the bundle. Any of
+   * the three absent → `/v1/openfort/encryption-session` answers 501, and the app
+   * cannot create a wallet at all, which is the one optional capability here
+   * whose absence is not merely an inconvenience.
    */
-  PRIVY_APP_ID: z.string().optional(),
-  PRIVY_APP_SECRET: z.string().optional(),
+  OPENFORT_PUBLISHABLE_KEY: z.string().optional(),
+  OPENFORT_SHIELD_PUBLISHABLE_KEY: z.string().optional(),
+  OPENFORT_SHIELD_SECRET_KEY: z.string().optional(),
+  OPENFORT_SHIELD_ENCRYPTION_SHARE: z.string().optional(),
 
   /** Where the payment store is persisted. Set to `:memory:` to disable. */
   NIGHTMARKET_DATA_FILE: z.string().default('.data/store.json'),

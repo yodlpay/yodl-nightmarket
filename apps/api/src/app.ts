@@ -11,11 +11,12 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import type { Env } from './env';
 import { AttestationSigner } from './lib/attestation';
-import { privySessionEmail } from './lib/privy';
+import { openfortSession, openfortSessionEmail, shieldEncryptionSession } from './lib/openfort';
 import type { PaymentStore } from './lib/store';
 import { SumsubKycClient } from './lib/sumsub';
 import { attestationRoutes, jwksRoute } from './routes/attestation';
 import { kycRoutes } from './routes/kyc';
+import { openfortRoutes } from './routes/openfort';
 import { paymentRoutes } from './routes/payments';
 import { webhookRoutes } from './routes/webhook';
 
@@ -49,14 +50,36 @@ export function createApp({ env, store }: AppDeps) {
       : null;
 
   /**
-   * The other half of attestation, and the one that decides *whose* email gets
-   * signed. Same rule as the signer: unset credentials switch the capability off
-   * rather than stopping the boot. Both halves are required — a signer with no way
-   * to authenticate the caller would sign for anyone who asked.
+   * Who is calling, in the two shapes the routes want it.
+   *
+   * `resolveVerifiedEmail` is the other half of attestation, and the one that
+   * decides *whose* email gets signed. Same rule as the signer: an unset key
+   * switches the capability off rather than stopping the boot. Both halves are
+   * required — a signer with no way to authenticate the caller would sign for
+   * anyone who asked. `resolveSession` is the same lookup without the email, for
+   * the route below that only needs to know somebody real is asking.
    */
-  const resolveVerifiedEmail =
-    env.PRIVY_APP_ID && env.PRIVY_APP_SECRET
-      ? privySessionEmail({ appId: env.PRIVY_APP_ID, appSecret: env.PRIVY_APP_SECRET })
+  const openfort = env.OPENFORT_PUBLISHABLE_KEY
+    ? { publishableKey: env.OPENFORT_PUBLISHABLE_KEY }
+    : null;
+  const resolveSession = openfort ? openfortSession(openfort) : undefined;
+  const resolveVerifiedEmail = openfort ? openfortSessionEmail(openfort) : undefined;
+
+  /**
+   * Minting Shield encryption sessions, which is what makes the app's wallets
+   * recoverable on a second device. All three values or none: the secret key and
+   * the encryption share are useless apart, and a half-configured Shield would
+   * fail at wallet creation rather than at boot.
+   */
+  const mintEncryptionSession =
+    env.OPENFORT_SHIELD_PUBLISHABLE_KEY &&
+    env.OPENFORT_SHIELD_SECRET_KEY &&
+    env.OPENFORT_SHIELD_ENCRYPTION_SHARE
+      ? shieldEncryptionSession({
+          shieldPublishableKey: env.OPENFORT_SHIELD_PUBLISHABLE_KEY,
+          shieldSecretKey: env.OPENFORT_SHIELD_SECRET_KEY,
+          encryptionShare: env.OPENFORT_SHIELD_ENCRYPTION_SHARE,
+        })
       : undefined;
 
   const app = new Hono();
@@ -90,6 +113,7 @@ export function createApp({ env, store }: AppDeps) {
   app.route('/v1', paymentRoutes(store));
   app.route('/v1/kyc', kycRoutes(sumsub));
   app.route('/v1/attestations', attestationRoutes({ signer, resolveVerifiedEmail }));
+  app.route('/v1/openfort', openfortRoutes({ resolveSession, mintEncryptionSession }));
   app.route('/.well-known', jwksRoute(signer));
 
   app.notFound((c) => c.json({ error: 'Not found' }, 404));

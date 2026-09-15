@@ -6,14 +6,14 @@
  * ── Where the email comes from ────────────────────────────────────────────────
  *
  * From the attester, and from nowhere else. This route authenticates the caller —
- * a Privy access token on the `Authorization` header — and then signs the email
+ * an Openfort access token on the `Authorization` header — and then signs the email
  * *it* has on file for that user. It never signs an email the client sent it.
  *
  * The body once carried a `claimedEmail` that got signed as-is, which was fine for
  * a demo and a privilege-escalation bug in anything real: any caller could assert
  * any email for any wallet, and the OTP step that exists to prevent exactly that
  * would be skipped. The seam that used to be marked "fill this in" is now filled
- * in by `lib/privy.ts`, and the shape of `resolveVerifiedEmail` below is what stops
+ * in by `lib/openfort.ts`, and the shape of `resolveVerifiedEmail` below is what stops
  * it from silently regressing — there is no longer a parameter to leak the body
  * through, so a future implementation cannot accidentally trust one.
  *
@@ -24,14 +24,14 @@
  * Returning `null`/404 is a first-class outcome, not a failure — `fetchEmailAttestation`
  * treats it as "no attestation available" and the user verifies by OTP as usual.
  * Which is why every decline here is a quiet 404 rather than a 401 or a 500: an
- * unset signing key, unset Privy credentials, a missing or bad token, and a user
+ * unset signing key, an unset Openfort key, a missing or bad token, and a user
  * with no email linked all cost exactly one extra screen.
  */
 
 import { attestationRequestSchema } from '@nightmarket/shared';
 import { Hono } from 'hono';
 import type { AttestationSigner } from '../lib/attestation';
-import type { ResolveVerifiedEmail } from '../lib/privy';
+import type { ResolveVerifiedEmail } from '../lib/openfort';
 
 export interface AttestationRouteOptions {
   signer: AttestationSigner | null;
@@ -55,7 +55,9 @@ export function attestationRoutes({ signer, resolveVerifiedEmail }: AttestationR
     }
 
     if (!resolveVerifiedEmail) {
-      console.log('[attest] declined: no caller authentication — PRIVY_APP_ID/SECRET are unset');
+      console.log(
+        '[attest] declined: no caller authentication — OPENFORT_PUBLISHABLE_KEY is unset',
+      );
       return c.json({ error: 'Attestation not configured' }, 404);
     }
 

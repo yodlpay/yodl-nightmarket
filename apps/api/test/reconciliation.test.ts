@@ -171,7 +171,7 @@ describe('attribution', () => {
     await sendIntent();
     await sendDelivery({ state: 'success' });
 
-    // The two forms that actually meet here: Privy hands the app an EIP-55
+    // The two forms that actually meet here: Openfort hands the app an EIP-55
     // checksummed address, and the store keeps the lowercase one Yodl uses. That
     // they resolve to the same feed was a property of two matching `toLowerCase`
     // calls in different files and nothing said so — this is the test that says
