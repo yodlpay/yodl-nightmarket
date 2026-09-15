@@ -2,8 +2,8 @@
  * Addresses and hashes, handled by viem rather than by string comparison.
  *
  * Every 0x string in this system arrives from somewhere that decides its own
- * casing: Yodl lowercases identifiers on the way out, Privy hands back an EIP-55
- * checksummed address, a URL param is whatever the user typed. Treating those as
+ * casing: Yodl lowercases identifiers on the way out, Openfort hands back an
+ * EIP-55 checksummed address, a URL param is whatever the user typed. Treating those as
  * plain strings works until the day two of them meet — a feed filtered with
  * `===` against a checksummed address returns nothing, and looks exactly like a
  * wallet with no payments.

@@ -14,10 +14,10 @@ import { env } from '~/env';
 
 /**
  * The ids come from `SUPPORTED_CHAINS` in `@nightmarket/shared`, which is viem's
- * chain records and is also what `_layout.tsx` hands Privy. This used to be a
+ * chain records and is also what `_layout.tsx` hands Openfort. This used to be a
  * literal `[1, 8453, 42161]` with a comment asking the reader to keep it in sync
- * with Privy's list — the two disagreeing is a switch request the wallet refuses,
- * mid-payment, and a comment is a poor way to prevent that.
+ * with the wallet's list — the two disagreeing is a switch request the wallet
+ * refuses, mid-payment, and a comment is a poor way to prevent that.
  */
 export const sdk = createSdk({
   integrationAddress: env.yodlIntegrationAddress,

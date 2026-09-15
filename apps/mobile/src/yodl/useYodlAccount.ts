@@ -14,10 +14,10 @@
  * Registration" a second time.
  *
  * Keyed by address, because a Yodl account is bound to a wallet, not to a person:
- * one Privy user switching wallets genuinely does need to register again.
+ * one signed-in user switching wallets genuinely does need to register again.
  *
  * `expo-secure-store` rather than a plain key-value store only because it is
- * already a dependency (Privy requires it). Nothing here is secret — it is a
+ * already a dependency (Openfort requires it). Nothing here is secret — it is a
  * boolean about a public address — and it is a cache, not a source of truth: the
  * hosted flow re-checks on mount and reports `signed_up` regardless of what we
  * think, which is what repairs this if it is ever wrong.

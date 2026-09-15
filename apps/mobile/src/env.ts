@@ -2,10 +2,11 @@
  * The four values this app cannot invent.
  *
  * `EXPO_PUBLIC_*` is inlined into the bundle at build time, which is fine for all
- * four — a Privy app id and a Yodl integration address are public identifiers,
- * not credentials. The one secret in this system, the Yodl API secret, lives only
- * in `apps/api`. If you ever find yourself wanting it here, that's the signal to
- * add an endpoint to the API instead.
+ * four — an Openfort publishable key, a Shield publishable key and a Yodl
+ * integration address are public identifiers, not credentials. The secrets in this
+ * system, the Yodl API secret and the Shield secret and encryption share, live
+ * only in `apps/api`. If you ever find yourself wanting one here, that's the
+ * signal to add an endpoint to the API instead.
  *
  * Nothing here throws. An earlier version did, on the theory that failing loudly
  * beats failing mysteriously — but a module-level throw in an Expo app is a red
@@ -19,8 +20,8 @@ const read = (value: string | undefined): string => (value ?? '').trim();
 
 /** Values the app can start without, even if it can't do much. */
 export const env = {
-  privyAppId: read(process.env.EXPO_PUBLIC_PRIVY_APP_ID),
-  privyClientId: read(process.env.EXPO_PUBLIC_PRIVY_CLIENT_ID),
+  openfortPublishableKey: read(process.env.EXPO_PUBLIC_OPENFORT_PUBLISHABLE_KEY),
+  openfortShieldPublishableKey: read(process.env.EXPO_PUBLIC_OPENFORT_SHIELD_PUBLISHABLE_KEY),
 
   /**
    * Falls back to the zero address so `createSdk` — which requires a non-empty
@@ -44,22 +45,22 @@ export interface MissingVariable {
  * person should deal with it.
  */
 export const missingEnv: MissingVariable[] = [
-  ...(env.privyAppId
+  ...(env.openfortPublishableKey
     ? []
     : [
         {
-          name: 'EXPO_PUBLIC_PRIVY_APP_ID',
+          name: 'EXPO_PUBLIC_OPENFORT_PUBLISHABLE_KEY',
           why: 'Without it there is no sign-in, and therefore no wallet to pay with.',
-          where: 'dashboard.privy.io → your app → App ID',
+          where: 'https://dashboard.openfort.io/api-keys → Publishable key',
         },
       ]),
-  ...(env.privyClientId
+  ...(env.openfortShieldPublishableKey
     ? []
     : [
         {
-          name: 'EXPO_PUBLIC_PRIVY_CLIENT_ID',
-          why: 'A mobile app needs this as well as the app id — it is what authorises a non-web platform to call Privy.',
-          where: 'dashboard.privy.io → your app → Clients',
+          name: 'EXPO_PUBLIC_OPENFORT_SHIELD_PUBLISHABLE_KEY',
+          why: 'Shield holds the wallet key share. Without this key the app signs in and then has no wallet to recover or create.',
+          where: 'https://dashboard.openfort.io/api-keys → Shield publishable key',
         },
       ]),
   ...(env.yodlIntegrationAddress === '0x0000000000000000000000000000000000000000'

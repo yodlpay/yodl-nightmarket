@@ -294,11 +294,11 @@ export default function Scanner() {
   // Each of these replaces the camera rather than layering over it. A viewfinder
   // running behind a modal the user must deal with first is just battery.
 
-  // No wallet gate. Privy provisions one at login (`createOnLogin` in the root
-  // layout), so a signed-in user without a wallet is a state that lasts a moment
-  // and has no action in it — and the scanner works during that moment. The
-  // payment surface is where a wallet is actually required, and `YodlHost` is
-  // what waits for it.
+  // No wallet gate. `useWallet` provisions one the moment the SDK reports a
+  // signed-in user with no key share on this device, so a signed-in user without
+  // a wallet is a state that lasts a moment and has no action in it — and the
+  // scanner works during that moment. The payment surface is where a wallet is
+  // actually required, and `YodlHost` is what waits for it.
   if (!permission) return <Screen />;
   if (!permission.granted) {
     return <NeedsCamera permission={permission} onAllow={() => void requestPermission()} />;

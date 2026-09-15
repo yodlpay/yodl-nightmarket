@@ -3,14 +3,15 @@
  *
  * There used to be two hand-kept tables in this package — one of display names,
  * one of explorer hosts — and two more lists in the app: `SUPPORTED_CHAIN_IDS`
- * for the Yodl SDK and `SUPPORTED_CHAINS` for Privy, with a comment on each
+ * for the Yodl SDK and `SUPPORTED_CHAINS` for the wallet, with a comment on each
  * begging the reader to keep them in sync. viem already ships all four facts per
  * chain (id, name, explorer, RPC), and the app already depends on viem for the
  * balance read, so the tables were a copy of a dependency we were shipping anyway.
  *
  * Everything is derived from `SUPPORTED_CHAINS` below. A chain added there is
- * added to Privy's allowlist, to the SDK's supported ids, to `chainName` and to
- * `explorerUrl` in one edit — which is the whole reason for this file.
+ * added to `OpenfortProvider`'s allowlist, to the SDK's supported ids, to
+ * `chainName` and to `explorerUrl` in one edit — which is the whole reason for
+ * this file.
  */
 
 import type { Chain } from 'viem/chains';
@@ -18,14 +19,15 @@ import { arbitrum, base, mainnet, optimism, polygon } from 'viem/chains';
 
 /**
  * Chains the wallet is allowed to be on, and the single source both the Yodl SDK
- * and Privy read.
+ * and `OpenfortProvider`'s `supportedChains` read.
  *
  * Base and Arbitrum are where Yodl's supported corridors settle today; mainnet is
  * here so a wallet that starts on it has somewhere to switch *from* rather than
- * erroring. Privy refuses a `wallet_switchEthereumChain` outside this list and
- * Yodl's hosted UI asks for exactly the chains it was told about — a disagreement
- * between the two used to surface as a payment dying at the switch step with an
- * error the user could not act on. They cannot disagree now.
+ * erroring. Openfort validates every wallet create and recover against this list
+ * and throws `unsupported_chain` outside it, and Yodl's hosted UI asks for exactly
+ * the chains it was told about — a disagreement between the two used to surface as
+ * a payment dying at the switch step with an error the user could not act on. They
+ * cannot disagree now.
  */
 export const SUPPORTED_CHAINS = [base, arbitrum, mainnet] as const;
 

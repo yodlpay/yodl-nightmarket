@@ -1,19 +1,21 @@
 /**
  * The gate. Nothing renders here — it decides where the user actually goes.
  *
- * Privy restores its session asynchronously, so the honest answer for the first
- * few hundred milliseconds is "don't know yet". Redirecting on `user === null`
- * before `isReady` bounces a signed-in user to the sign-in screen and then back,
- * which is both a flash and, on a slow device, a chance to tap the wrong thing.
+ * Openfort restores its session asynchronously, so the honest answer for the
+ * first few hundred milliseconds is "don't know yet". Redirecting on
+ * `user === null` before `isReady` bounces a signed-in user to the sign-in screen
+ * and then back, which is both a flash and, on a slow device, a chance to tap the
+ * wrong thing.
  */
 
-import { usePrivy } from '@privy-io/expo';
+import { useOpenfort, useUser } from '@openfort/react-native';
 import { Redirect } from 'expo-router';
 import { ActivityIndicator, View } from 'react-native';
 import { useColors } from '~/ui/theme';
 
 export default function Index() {
-  const { isReady, user } = usePrivy();
+  const { isReady } = useOpenfort();
+  const { user } = useUser();
   const colors = useColors();
 
   if (!isReady) {

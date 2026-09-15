@@ -1,9 +1,10 @@
 /**
- * Root layout: fonts, Privy, safe area, and the splash screen that waits for them.
+ * Root layout: fonts, Openfort, safe area, and the splash screen that waits for
+ * them.
  *
- * Order matters. `PrivyProvider` wraps everything because any screen may ask for
- * the user or the wallet, and the splash is held until the fonts resolve so the
- * first frame the user sees is already in Instrument Sans. A payment app that
+ * Order matters. `OpenfortProvider` wraps everything because any screen may ask
+ * for the user or the wallet, and the splash is held until the fonts resolve so
+ * the first frame the user sees is already in Instrument Sans. A payment app that
  * renders one frame in the system font looks broken in a way that is hard to
  * un-see.
  */
@@ -17,18 +18,45 @@ import {
 } from '@expo-google-fonts/instrument-sans';
 import { SUPPORTED_CHAINS } from '@nightmarket/shared';
 import { palette } from '@nightmarket/theme';
-import { PrivyProvider } from '@privy-io/expo';
+import { AccountTypeEnum, OpenfortProvider, useUser } from '@openfort/react-native';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { type RefObject, useEffect, useMemo, useRef } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { api } from '~/api/client';
 import { QueryProvider } from '~/api/query';
 import { env, isConfigured, missingEnv } from '~/env';
 import { SetupNeeded } from '~/ui/SetupNeeded';
 import { useScheme } from '~/ui/theme';
+
+/** How the app reads the signed-in caller's Openfort access token. */
+type TokenReader = () => Promise<string | null>;
+
+/**
+ * Publishes `getAccessToken` out of the Openfort context and into a ref the
+ * provider's own props can reach.
+ *
+ * `walletConfig.getEncryptionSession` is a plain callback handed *to* the
+ * provider, so it is constructed outside the context it needs and cannot call a
+ * hook to get the token. This renders nothing and exists only to close that loop
+ * from the inside.
+ *
+ * Nothing calls the callback before this has mounted: the SDK only asks for an
+ * encryption session while creating or recovering a wallet, which happens screens
+ * later, behind a sign-in.
+ */
+function SessionBridge({ tokenRef }: { tokenRef: RefObject<TokenReader> }) {
+  const { getAccessToken } = useUser();
+
+  useEffect(() => {
+    tokenRef.current = getAccessToken;
+  }, [tokenRef, getAccessToken]);
+
+  return null;
+}
 
 // Hold the native splash until fonts are ready. `catch` because this rejects
 // harmlessly if the splash has already auto-hidden (fast reload, dev client).
@@ -60,6 +88,42 @@ export default function RootLayout() {
     if (fontsLoaded || fontError) void SplashScreen.hideAsync().catch(() => {});
   }, [fontsLoaded, fontError]);
 
+  // Filled in by `SessionBridge` once the provider below is mounted.
+  const tokenRef = useRef<TokenReader>(async () => null);
+
+  // One object for the provider's lifetime. The SDK keys its *client* on the
+  // serialisable half of this config, so a fresh object per render would not
+  // rebuild the signer — but the wallet hooks take the config itself as an effect
+  // dependency, and every re-render of this layout (a scheme change, say) would
+  // have them list the user's wallets from the server again.
+  const walletConfig = useMemo(
+    () => ({
+      shieldPublishableKey: env.openfortShieldPublishableKey,
+      /*
+        A plain EOA, because the EIP-7702 delegation this app needs is Yodl's.
+        `DELEGATED_ACCOUNT` would have Openfort delegate the same account to its
+        own Calibur implementation, and an EOA can only be delegated to one of
+        them at a time.
+      */
+      accountType: AccountTypeEnum.EOA,
+      /*
+        `automatic` is what keeps sign-in a single step: the key share is sealed
+        with a session our own API fetches from Shield, so there is no password
+        to invent and no passkey prompt. The tradeoff is stated plainly in
+        Openfort's docs — the auth token becomes the root of trust for the wallet
+        — and it is the same trade this app already makes by holding the money
+        behind an emailed code.
+      */
+      recoveryMethod: 'automatic' as const,
+      getEncryptionSession: async () => {
+        const accessToken = await tokenRef.current();
+        if (!accessToken) throw new Error('Sign in before creating a wallet.');
+        return api.encryptionSession(accessToken);
+      },
+    }),
+    [],
+  );
+
   if (!fontsLoaded && !fontError) return null;
 
   return (
@@ -88,9 +152,9 @@ export default function RootLayout() {
           <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
 
           {/*
-            Mounting PrivyProvider with an empty appId gets you an opaque failure
-            deep in the SDK, so an unconfigured app gets a screen naming the
-            variable instead.
+            Mounting OpenfortProvider with an empty publishable key gets you an
+            opaque failure deep in the SDK, so an unconfigured app gets a screen
+            naming the variable instead.
           */}
           {isConfigured ? (
             /*
@@ -100,31 +164,24 @@ export default function RootLayout() {
               its own cache, and the whole point is that the feed and the detail
               screen are looking at the same payment.
 
-              Outside `PrivyProvider` on purpose: nothing in the client reads
-              Privy's context — the screens pass the wallet address in as an
-              argument — and the cache is dropped explicitly at sign-out, where
-              the session ends, rather than by unmounting a provider.
+              Outside `OpenfortProvider` on purpose: nothing in the client
+              reads Openfort's context — the screens pass the wallet address in
+              as an argument — and the cache is dropped explicitly at sign-out,
+              where the session ends, rather than by unmounting a provider.
             */
             <QueryProvider>
-              <PrivyProvider
-                appId={env.privyAppId}
-                clientId={env.privyClientId}
-                supportedChains={[...SUPPORTED_CHAINS]}
+              <OpenfortProvider
+                publishableKey={env.openfortPublishableKey}
                 /*
-                  The wallet is provisioned as part of logging in, which is why
-                  no screen in this app asks anyone to create one. Privy's
-                  default here is `off`, and the cost of leaving it there was a
-                  full-screen gate with a "Create my wallet" button on it — a
-                  step with no decision in it, in an app whose premise is that
-                  there is nothing to set up.
-
-                  `users-without-wallets` rather than `all-users`: the latter
-                  mints an additional wallet for someone who already has one.
-                  Every login path this app can take carries the setting into the
-                  SDK, so email codes today and anything added later are covered.
+                  The same list the Yodl SDK is built from, so a switch request
+                  from the hosted UI can never land on a chain the signer refuses
+                  — `create` and `setActive` validate against this and throw
+                  `unsupported_chain` rather than falling back to a default.
                 */
-                config={{ embedded: { ethereum: { createOnLogin: 'users-without-wallets' } } }}
+                supportedChains={[...SUPPORTED_CHAINS]}
+                walletConfig={walletConfig}
               >
+                <SessionBridge tokenRef={tokenRef} />
                 {/*
                   `bgDeep` is the token's one job: what sits behind the root Stack
                   and under a scroll bounce. Every transition here is animated, so
@@ -138,7 +195,7 @@ export default function RootLayout() {
                     animation: 'fade',
                   }}
                 />
-              </PrivyProvider>
+              </OpenfortProvider>
             </QueryProvider>
           ) : (
             <SetupNeeded missing={missingEnv} />

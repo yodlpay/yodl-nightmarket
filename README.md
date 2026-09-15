@@ -8,7 +8,7 @@ It is a pnpm monorepo with two applications:
 
 | | |
 | --- | --- |
-| **`apps/mobile`** | Expo (SDK 57) scanner — opens straight onto a viewfinder, Privy embedded wallet, the three Yodl hosted surfaces |
+| **`apps/mobile`** | Expo (SDK 57) scanner — opens straight onto a viewfinder, Openfort embedded wallet, the three Yodl hosted surfaces |
 | **`apps/api`** | Hono REST API — receives Yodl's signed payment webhooks, reconciles them, serves the app's feed |
 
 and two shared packages:
@@ -86,8 +86,11 @@ gone wrong teaches nobody what it means.
 ### 0. Prerequisites
 
 - Node ≥ 22, pnpm ≥ 10
-- A [Privy](https://dashboard.privy.io) app **and app client** — a mobile app needs
-  both; login fails confusingly with only the app id
+- An [Openfort](https://dashboard.openfort.io) project with **Email** enabled under
+  Configuration → Providers, and a set of **Shield** keys from
+  [the API keys page](https://dashboard.openfort.io/api-keys) — sign-in and the
+  wallet are two separate pieces of setup, and the second is what gives a signed-in
+  user an address
 - A Yodl integration address ([how to get one](https://docs.yodl.me/integrations/onboarding))
 - **Android:** Android Studio, a JDK (17 works), and an emulator or device.
   Set `ANDROID_HOME` — the Gradle wrapper is vendored, so a separate Gradle isn't needed.
@@ -95,9 +98,10 @@ gone wrong teaches nobody what it means.
   on those, Android is the only local target.
 
 > **Expo Go will not work.** The Yodl SDK renders its hosted UI in
-> `react-native-webview` and Privy ships native modules; neither exists in Expo Go,
-> which produces a crash or a blank screen rather than a useful error. You need a
-> development build — `expo run:ios` / `expo run:android` below do that for you.
+> `react-native-webview` and Openfort pulls in native modules of its own (secure
+> store, crypto, passkeys); none of that exists in Expo Go, which produces a crash
+> or a blank screen rather than a useful error. You need a development build —
+> `expo run:ios` / `expo run:android` below do that for you.
 
 ### 1. Install
 
@@ -122,9 +126,10 @@ out:
 - the **integration address**, propagated to both files — if those two disagree,
   every webhook is rejected as addressed elsewhere and no payment ever reaches the
   feed
-- the **Privy app id**, propagated the same way once you have supplied it — if
-  those two disagree, every access token the app sends fails the API's audience
-  check and signup silently loses the OTP skip
+- the two **Openfort publishable keys**, propagated the same way once you have
+  supplied them — if those disagree between the files, the API resolves the app's
+  access tokens against the wrong project, and both the OTP skip and wallet
+  recovery stop working without saying why
 
 Re-running is safe and useful: it never overwrites a value you typed, and it
 **adopts keys added to the example since you set up** — appending them with their
@@ -137,8 +142,8 @@ It then prints what's left, which is:
 
 | | |
 | --- | --- |
-| `EXPO_PUBLIC_PRIVY_APP_ID`, `EXPO_PUBLIC_PRIVY_CLIENT_ID` | [dashboard.privy.io](https://dashboard.privy.io) → your app → **Clients**. You need both — the client is what authorises a non-web platform |
-| `PRIVY_APP_SECRET` | [dashboard.privy.io](https://dashboard.privy.io) → your app → **App settings** → Basics. Server-side only. Without it the attestation route declines everything and signup falls back to the emailed code |
+| `EXPO_PUBLIC_OPENFORT_PUBLISHABLE_KEY`, `EXPO_PUBLIC_OPENFORT_SHIELD_PUBLISHABLE_KEY` | [dashboard.openfort.io/api-keys](https://dashboard.openfort.io/api-keys). You need both — the publishable key names the project people sign in to, the Shield key is what gives them a wallet once they are in. Both are public identifiers, and `setup:env` copies them over to the API |
+| `OPENFORT_SHIELD_SECRET_KEY`, `OPENFORT_SHIELD_ENCRYPTION_SHARE` | same page, server-side only — together they decrypt every wallet in the project, and the encryption share is shown **once**. Without them `/v1/openfort/encryption-session` answers 501, no wallet can be created or recovered, and there is nothing to pay with |
 | `YODL_INTEGRATION_ADDRESS` | defaults to the sample address from Yodl's docs so the local webhook replay works; replace it in **both** files with yours |
 | `YODL_API_SECRET` | optional — without it `/v1/yodl/payments` returns 501 and everything else works |
 
@@ -248,23 +253,28 @@ picked.
 Yodl wants a provider, an address and a chain id, and is emphatic that the last two
 must be *live* values — it pushes `accountsChanged` and `chainChanged` into the
 hosted UI as they change, so a stale `chainId` leaves the payment on the wrong
-chain. Privy exposes the provider through an async `getProvider()` and the chain id
-only over RPC, so this hook is the glue, subscribing to the provider's own events
-rather than polling.
+chain. Openfort hands over the provider and the address only once its wallet state
+reaches `connected`, and the chain id only over RPC, so this hook is the glue,
+subscribing to the provider's own events rather than polling.
 
-Nobody creates a wallet by hand. `config.embedded.ethereum.createOnLogin` on
-`PrivyProvider` (root layout) provisions one as part of logging in — Privy's
-default is `off`, and leaving it there cost a full-screen "Create my wallet" gate
-in the scanner, a step with no decision in it. The hook keeps a one-shot backstop
-for a session that was already signed in before that setting existed, guarded on
-`getUserEmbeddedEthereumWallet(user)` — the same check Privy's own provisioning
-runs, and the one that cannot race it.
+Nobody creates a wallet by hand. The wallet is an Openfort **embedded EOA**, and
+`useWallet` provisions it on the first sign-in of a session: create one, or recover
+the existing one when the same account signs in on a second device. A full-screen
+"Create my wallet" gate is a step with no decision in it, so there isn't one.
+
+Recovery is **automatic**, which is what lets that be true — there is no password
+or passphrase for the user to invent and then need again a year later. Shield holds
+the encrypted half of the key material and releases it only against a single-use
+encryption session, and `POST /v1/openfort/encryption-session` is where that session
+is minted. The Shield secret and the encryption share stay on the server; the device
+receives one session id and spends it on one recovery.
 
 ### Email attestation (`apps/api/src/lib/attestation.ts`)
 
-Optional, and off until Yodl enables it per integration. Our backend already
-verified the user's email (Privy's OTP is how they signed in), so it mints a
-short-lived Ed25519 JWT asserting that and the user skips Yodl's own OTP.
+Optional, and off until Yodl enables it per integration. The user's email has
+already been verified once to get this far (an Openfort email sign-in is how they
+did it), so our backend mints a short-lived Ed25519 JWT asserting that and the user
+skips Yodl's own OTP.
 
 `pnpm run setup:env` generates the keypair; `pnpm --filter @nightmarket/api keygen`
 rotates it. The key lives in `.env` as base64 rather than as an escaped PEM,
@@ -276,19 +286,22 @@ quoting.
 rather than two loose attributes, and it is the part people get wrong first.
 
 The email is not the app's to propose. The mobile client posts a wallet address and
-a `Authorization: Bearer <Privy access token>` header and nothing else;
-`apps/api/src/lib/privy.ts` verifies that token offline against the JWKS Privy
-publishes for the app, then reads the email Privy has on file for whoever the token
-belongs to. Signing an email the client sent would let any caller assert any address
-for any wallet and skip the very OTP this is bypassing, so there is no code path
-that can — the request schema does not name an email and the resolver has no
-parameter to receive one.
+an `Authorization: Bearer <Openfort access token>` header and nothing else;
+`apps/api/src/lib/openfort.ts` hands that token straight back to Openfort's
+`get-session` endpoint along with the project's publishable key, and the reply
+carries both the user and whether Openfort has verified their email. There is no
+offline check to do: a v2 access token is an opaque HMAC string rather than a JWT,
+so Openfort is the only party that can say whose it is. Signing an email the client
+sent would let any caller assert any address for any wallet and skip the very OTP
+this is bypassing, so there is no code path that can — the request schema does not
+name an email and the resolver has no parameter to receive one.
 
-`PRIVY_APP_ID` and `PRIVY_APP_SECRET` are what make that possible. Unset, the route
-declines every request with a 404, which the SDK reads as "no attestation
-available" and the user takes the ordinary OTP. So does a user who signed in by SMS,
-passkey or OAuth and has no email linked at all — `null` is a first-class outcome
-here, not a failure.
+`OPENFORT_PUBLISHABLE_KEY` is what makes that possible. Unset, the route declines
+every request with a 404, which the SDK reads as "no attestation available" and the
+user takes the ordinary OTP. So does a user who signed in with Google, Apple or a
+passkey and has no verified email — `null` is a first-class outcome here, not a
+failure. So does an api.openfort.io that is unreachable, which is the standing cost
+of the round trip the opaque token forces.
 
 ---
 
@@ -345,10 +358,10 @@ is how a wallet's feed is matched, `getAddress` is what checksums an address
 before it is shown or sent to, and `hexToNumber` reads the `eth_chainId` reply.
 
 The list of supported chains lives in `@nightmarket/shared` and is viem's chain
-records, which is what feeds both Privy's `supportedChains` and the Yodl SDK's
-`supportedChainIds`. Those were two separate literals with a comment on each
-asking the reader to keep them in sync; a disagreement is a payment that dies at
-the chain-switch step.
+records, which is what feeds both `OpenfortProvider`'s `supportedChains` and the
+Yodl SDK's `supportedChainIds`. Those were two separate literals with a comment on
+each asking the reader to keep them in sync; a disagreement is a payment that dies
+at the chain-switch step.
 
 **TanStack Query owns every read in the app.** The feed, one payment, the stats
 endpoint and the on-chain balance all go through it — there is no second loading
@@ -382,10 +395,13 @@ new, rather than on every navigation in case there might be.
 **`node-linker=hoisted`.** Metro does not follow pnpm's default symlinked layout
 reliably. `.npmrc` and `metro.config.js` are two halves of the same decision.
 
-**`browser` is an active Metro condition.** Privy depends on `jose`, whose exports
-map offers `browser` before `import`. Without it Metro takes jose's *Node* build,
-which opens with `import * as crypto from 'crypto'`, and the bundle dies with
-"Unable to resolve module crypto" several layers from anything this repo wrote.
+**`browser` is an active Metro condition.** Packages in the wallet stack ship Node
+and browser builds behind one exports map, usually offering `browser` before
+`import`. Without `browser` active Metro takes the *Node* build, which imports
+`crypto` and fails to bundle several layers away from anything this app wrote.
+`jose` is the package that taught us this, and Openfort's Metro guidance still
+special-cases it for the same reason; naming the condition once covers every
+package that ships a browser build.
 
 **`packages/*` ship TypeScript source, no build step.** Metro hot-reloads a palette
 edit straight into the running app. The one place that costs something is
@@ -398,4 +414,4 @@ written by hand — both for native surfaces painted before any JavaScript runs.
 
 - [Yodl React Native SDK](https://docs.yodl.me/sdk/react-native/) · [quickstart](https://docs.yodl.me/sdk/react-native/quickstart) · [theming](https://docs.yodl.me/sdk/react-native/theming) · [troubleshooting](https://docs.yodl.me/sdk/react-native/troubleshooting)
 - [Payment notifications](https://docs.yodl.me/integrations/notifications) · [Payments API](https://docs.yodl.me/integrations/payments-api) · [Email attestation](https://docs.yodl.me/integrations/email-attestation)
-- [Privy React Native](https://docs.privy.io/basics/react-native/quickstart) · [Expo monorepos](https://docs.expo.dev/guides/monorepos/)
+- [Openfort embedded wallets in React Native](https://www.openfort.io/docs/products/embedded-wallet/react-native/) · [Expo monorepos](https://docs.expo.dev/guides/monorepos/)

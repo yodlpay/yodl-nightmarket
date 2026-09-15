@@ -13,7 +13,7 @@
  * thing that can arrive, since a wallet with no Yodl account lands on Yodl's
  * connect screen instead. Still not a spinner: nothing here moves, which matters
  * most in the error case, where a wallet that failed to provision never arrives
- * and an animation would be a lie that lasts forever. The message is Privy's
+ * and an animation would be a lie that lasts forever. The message is the SDK's
  * own, which names the cause.
  *
  * Colours come from `dark` rather than `useColors()`, the same reach `YodlHost`

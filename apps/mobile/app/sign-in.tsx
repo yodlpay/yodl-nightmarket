@@ -1,14 +1,16 @@
 /**
  * Sign in — email, then a six-digit code.
  *
- * Privy's `useLoginWithEmail` is a two-call flow (`sendCode`, then `loginWithCode`)
- * with a `state` machine attached, and this screen is mostly a rendering of that
- * state. Three things it does deliberately:
+ * Openfort's `useEmailAuthOtp` is a two-call flow — `requestEmailOtp`, then
+ * `signInEmailOtp` — reporting four booleans and an error. Which of the two calls
+ * those booleans belong to is the screen's own business, so `step` is local state
+ * here rather than something read back out of the SDK. Three things it does
+ * deliberately:
  *
  *  - **One field visible at a time.** The email field is replaced by the code
  *    field rather than joined by it. A form showing an empty code box next to a
  *    filled email box invites people to type the code before it has been sent.
- *  - **The error is Privy's, not ours.** A wrong code, a rate limit and a dead
+ *  - **The error is Openfort's, not ours.** A wrong code, a rate limit and a dead
  *    network are different problems with different fixes, and flattening them to
  *    "Something went wrong" removes the only information the user could act on.
  *  - **The code is six slots, not a text box.** Every reference treats code entry
@@ -27,7 +29,7 @@
  */
 
 import { radius, space, typography } from '@nightmarket/theme';
-import { useLoginWithEmail } from '@privy-io/expo';
+import { useEmailAuthOtp } from '@openfort/react-native';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
@@ -45,17 +47,17 @@ export default function SignIn() {
   const colors = useColors();
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
+  /** Which half of the flow is on screen. Advanced by a sent code, never by a render. */
+  const [step, setStep] = useState<'email' | 'code'>('email');
   /** Which field owns the keyboard. Drives the ring, and nothing else. */
   const [focused, setFocused] = useState<'email' | 'code' | null>(null);
 
-  const { sendCode, loginWithCode, state } = useLoginWithEmail({
-    onLoginSuccess: () => router.replace('/(market)'),
-  });
+  const { requestEmailOtp, signInEmailOtp, isLoading, error, reset } = useEmailAuthOtp();
 
-  const sending = state.status === 'sending-code';
-  const submitting = state.status === 'submitting-code';
-  const awaitingCode = state.status === 'awaiting-code-input' || submitting;
-  const error = state.status === 'error' ? state.error : null;
+  // One `isLoading` covers both calls, and only one of them can be in flight —
+  // the step it belongs to is the step we are on.
+  const sending = isLoading && step === 'email';
+  const submitting = isLoading && step === 'code';
 
   /** The slot the next digit lands in. Reads as the caret, without animating one. */
   const caret = Math.min(code.length, SLOTS.length - 1);
@@ -113,7 +115,7 @@ export default function SignIn() {
           </View>
 
           <View style={styles.form}>
-            {awaitingCode ? (
+            {step === 'code' ? (
               <>
                 <Txt variant="small" tone="secondary">
                   We sent a six-digit code to {email}
@@ -168,17 +170,27 @@ export default function SignIn() {
                   label="Enter the market"
                   loading={submitting}
                   disabled={code.length < 6}
-                  onPress={() => void loginWithCode({ code, email })}
+                  onPress={() =>
+                    void signInEmailOtp({
+                      email,
+                      otp: code,
+                      // These calls resolve with `{ user }` or `{ error }` rather
+                      // than throwing, so success is a callback and not a `then`.
+                      onSuccess: () => router.replace('/(market)'),
+                    })
+                  }
                 />
                 <Button
                   label="Use a different email"
                   variant="text"
                   onPress={() => {
+                    setStep('email');
                     setCode('');
-                    // Back to the email step. Privy's state machine has no
-                    // "cancel", so the screen owns this — which is fine, it is a
-                    // UI decision, not an auth one.
                     setEmail('');
+                    // The rejected-code message belongs to the code that was just
+                    // abandoned; leaving it up would have it read as a verdict on
+                    // the empty email field underneath it.
+                    reset();
                   }}
                 />
               </>
@@ -208,7 +220,7 @@ export default function SignIn() {
                   label="Send code"
                   loading={sending}
                   disabled={!email.includes('@')}
-                  onPress={() => void sendCode({ email })}
+                  onPress={() => void requestEmailOtp({ email, onSuccess: () => setStep('code') })}
                 />
               </>
             )}
@@ -227,7 +239,7 @@ export default function SignIn() {
             </View>
 
             <Txt variant="small" tone="muted" style={{ marginTop: space.sm }}>
-              Privy creates an embedded wallet for you on first sign-in. No seed phrase to write
+              Openfort creates an embedded wallet for you on first sign-in. No seed phrase to write
               down, no extension to install.
             </Txt>
           </View>

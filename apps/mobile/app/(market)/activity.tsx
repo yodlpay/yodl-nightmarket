@@ -57,7 +57,7 @@
 import type { NightmarketPayment } from '@nightmarket/shared';
 import { chainName, truncateAddress } from '@nightmarket/shared';
 import { space } from '@nightmarket/theme';
-import { usePrivy } from '@privy-io/expo';
+import { useSignOut } from '@openfort/react-native';
 import { router } from 'expo-router';
 import { useMemo } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, View } from 'react-native';
@@ -79,7 +79,7 @@ const CTA_HEIGHT = 52 + space.lg;
 export default function Activity() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { logout } = usePrivy();
+  const { signOut } = useSignOut();
   const wallet = useWallet();
   const feed = useFeed(wallet.address);
   const balance = useBalance(wallet.provider, wallet.address, wallet.chainId);
@@ -109,7 +109,7 @@ export default function Activity() {
           label="Sign out"
           variant="text"
           onPress={() => {
-            void logout();
+            void signOut();
             queryClient.clear();
           }}
         />
