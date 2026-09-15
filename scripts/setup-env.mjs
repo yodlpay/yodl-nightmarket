@@ -26,15 +26,16 @@
  *  3. **Fill everything that can be derived.** The attestation keypair and the
  *     LAN address are both things a machine can work out; making a human paste
  *     them is how a demo acquires a "step 4 that never works".
- *  4. **Say plainly what's left.** The Privy client id and app secret cannot be
- *     derived from anything on this machine.
+ *  4. **Say plainly what's left.** The Openfort keys exist only in a dashboard,
+ *     so they are the one thing this script has to ask a human for.
  *
- * The two apps share two values — the Yodl integration address and the Privy app
- * id — and both are propagated rather than asked for twice. If the addresses
- * disagree, every webhook is rejected as addressed elsewhere and no payment
- * reaches the feed; if the Privy app ids disagree, every access token the app
- * sends fails the API's audience check and signup quietly loses the OTP skip.
- * Both are genuinely miserable things to debug.
+ * The two apps share three values — the Yodl integration address and the two
+ * Openfort publishable keys — and all three are propagated rather than asked for
+ * twice. If the addresses disagree, every webhook is rejected as addressed
+ * elsewhere and no payment reaches the feed. If the publishable keys disagree,
+ * the API resolves the app's access tokens against the wrong Openfort project,
+ * which costs signup the OTP skip and leaves wallet recovery unable to mint a
+ * session. All genuinely miserable things to debug.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -278,21 +279,32 @@ if (isUnset(api, 'YODL_ATTESTATION_PRIVATE_KEY')) {
   note('keypair  already set, left alone');
 }
 
-// 3. The Privy app id — one value, two files, exactly like the address above.
-//    The API needs it to check the `aud` of the access tokens the app sends and to
-//    find the right JWKS; the app needs it to log anyone in. Only the app can be
-//    asked for it, so whichever side has it wins and the other is filled from it.
-const privyAppId = !isUnset(mobile, 'EXPO_PUBLIC_PRIVY_APP_ID')
-  ? mobile.get('EXPO_PUBLIC_PRIVY_APP_ID')
-  : !isUnset(api, 'PRIVY_APP_ID')
-    ? api.get('PRIVY_APP_ID')
-    : null;
+// 3. The two Openfort publishable keys — one value each, two files, exactly like
+//    the address above. The API sends the project key to Openfort to resolve the
+//    caller's access token; the app needs it to sign anyone in. The Shield key
+//    pairs the app's wallet with the encryption sessions the API mints. Only a
+//    human with the dashboard open can supply either, so whichever side has one
+//    wins and the other is filled from it.
+const propagate = (mobileKey, apiKey) => {
+  const value = !isUnset(mobile, mobileKey)
+    ? mobile.get(mobileKey)
+    : !isUnset(api, apiKey)
+      ? api.get(apiKey)
+      : null;
+  if (!value) return null;
+  apiText = put(apiText, { [apiKey]: value });
+  mobileText = put(mobileText, { [mobileKey]: value });
+  return value;
+};
 
-if (privyAppId) {
-  apiText = put(apiText, { PRIVY_APP_ID: privyAppId });
-  mobileText = put(mobileText, { EXPO_PUBLIC_PRIVY_APP_ID: privyAppId });
-  note(`privy    app id ${privyAppId}, propagated to both`);
-}
+const openfortKey = propagate('EXPO_PUBLIC_OPENFORT_PUBLISHABLE_KEY', 'OPENFORT_PUBLISHABLE_KEY');
+if (openfortKey) note(`openfort ${openfortKey}, propagated to both`);
+
+const shieldKey = propagate(
+  'EXPO_PUBLIC_OPENFORT_SHIELD_PUBLISHABLE_KEY',
+  'OPENFORT_SHIELD_PUBLISHABLE_KEY',
+);
+if (shieldKey) note(`shield   ${shieldKey}, propagated to both`);
 
 // 4. Where the phone reaches the API.
 if (isUnset(mobile, 'EXPO_PUBLIC_API_URL')) {
@@ -318,25 +330,38 @@ await writeFile(mobileFile.path, mobileText);
 api = parse(await readFile(apiFile.path, 'utf8'));
 mobile = parse(await readFile(mobileFile.path, 'utf8'));
 
-if (isUnset(mobile, 'EXPO_PUBLIC_PRIVY_APP_ID') || isUnset(mobile, 'EXPO_PUBLIC_PRIVY_CLIENT_ID')) {
+if (
+  isUnset(mobile, 'EXPO_PUBLIC_OPENFORT_PUBLISHABLE_KEY') ||
+  isUnset(mobile, 'EXPO_PUBLIC_OPENFORT_SHIELD_PUBLISHABLE_KEY')
+) {
   todo.push(
-    'EXPO_PUBLIC_PRIVY_APP_ID and EXPO_PUBLIC_PRIVY_CLIENT_ID in apps/mobile/.env\n' +
-      '    A mobile app needs BOTH — the client is what authorises a non-web\n' +
-      '    platform to call Privy, and login fails confusingly with only the app id.\n' +
-      '    https://dashboard.privy.io  →  your app  →  Clients',
+    'EXPO_PUBLIC_OPENFORT_PUBLISHABLE_KEY and\n' +
+      '    EXPO_PUBLIC_OPENFORT_SHIELD_PUBLISHABLE_KEY in apps/mobile/.env\n' +
+      '    The app needs BOTH — the publishable key names the project people sign\n' +
+      '    in to, the Shield key is what gives them a wallet once they are in.\n' +
+      '    Both are public identifiers; this script copies them over to the API.\n' +
+      '    https://dashboard.openfort.io/api-keys\n' +
+      '    Email sign-in is a separate switch, under Configuration > Providers.',
   );
 }
 
-if (isUnset(api, 'PRIVY_APP_SECRET')) {
-  note('optional PRIVY_APP_SECRET unset — email attestation declines, so signup uses the OTP');
+if (isUnset(api, 'OPENFORT_PUBLISHABLE_KEY')) {
+  note('optional OPENFORT_PUBLISHABLE_KEY unset — email attestation declines, signup uses the OTP');
+}
+
+if (
+  isUnset(api, 'OPENFORT_SHIELD_SECRET_KEY') ||
+  isUnset(api, 'OPENFORT_SHIELD_ENCRYPTION_SHARE')
+) {
   todo.push(
-    "PRIVY_APP_SECRET in apps/api/.env — needed to skip Yodl's OTP.\n" +
-      '    It is how the API reads the email Privy already verified for the caller.\n' +
-      '    Without it the attestation route cannot tell one caller from another, so\n' +
-      '    it declines every request and signup falls back to the emailed code.\n' +
-      '    Server-side only — it can read every user in your app, so it must never\n' +
-      '    be given an EXPO_PUBLIC_ twin.\n' +
-      '    https://dashboard.privy.io  →  your app  →  App settings  →  Basics',
+    'OPENFORT_SHIELD_SECRET_KEY and OPENFORT_SHIELD_ENCRYPTION_SHARE in apps/api/.env\n' +
+      '    Not optional the way the rest of this list is: without them\n' +
+      '    /v1/openfort/encryption-session answers 501, no wallet can be created or\n' +
+      '    recovered, and the app has nothing to pay with.\n' +
+      '    Server-side only — together they decrypt the recovery share of every\n' +
+      '    wallet in the project, so neither may be given an EXPO_PUBLIC_ twin. The\n' +
+      '    encryption share is shown once, when the Shield keys are created.\n' +
+      '    https://dashboard.openfort.io/api-keys',
   );
 }
 
