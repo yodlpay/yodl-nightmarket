@@ -130,13 +130,26 @@ export const nightmarketYodlTheme: YodlThemeShape = {
     error: light.error,
   },
 
-  // `images` is left off deliberately. The slots take hosted https URLs — an
-  // .mp4 loops as video, anything else renders as an <img>, and a URL that
-  // isn't really an image fails silently as a broken image. Point these at a
-  // CDN you control once you have one:
-  //
-  // images: {
-  //   dark: { loading: 'https://cdn.example.com/nightmarket-loading-dark.mp4' },
-  //   light: { loading: 'https://cdn.example.com/nightmarket-loading-light.mp4' },
-  // },
+  /**
+   * The hosted surfaces the app doesn't draw itself. An `.mp4` loops as video,
+   * anything else renders as an `<img>`, and a URL that isn't really an image
+   * fails silently as a broken image — so these are worth opening once after
+   * any redeploy rather than trusting the build.
+   *
+   * `payBackground` is set on both modes even though `brandSurface` is
+   * mode-invariant: the slots are declared per mode, and a light session still
+   * paints the pay surface in Ink.
+   */
+  images: {
+    dark: {
+      loading: 'https://nightmarket-theme-assets.vercel.app/loading-arc-dark.mp4',
+      processing: 'https://nightmarket-theme-assets.vercel.app/processing-dark.mp4',
+      payBackground: 'https://nightmarket-theme-assets.vercel.app/pay-background-dark.png',
+    },
+    light: {
+      loading: 'https://nightmarket-theme-assets.vercel.app/loading-arc-light.mp4',
+      processing: 'https://nightmarket-theme-assets.vercel.app/processing-light.mp4',
+      payBackground: 'https://nightmarket-theme-assets.vercel.app/pay-background-light.png',
+    },
+  },
 };
