@@ -15,14 +15,15 @@
  * balance" are the same claim here — and calling it anything broader would be a
  * portfolio valuation, which this app has no business computing.
  *
- * **Base only, deliberately.** The wallet can still be switched to Ethereum or
- * Arbitrum mid-payment, because `SUPPORTED_CHAIN_IDS` allows it and Yodl needs
- * it. This number does not follow it there. Counting three chains' USDC into one
- * hero figure would state a total the user cannot spend in one go, and counting
- * whichever chain happened to be current would make the same wallet report three
- * different balances depending on where its last payment settled. One chain, one
- * number, and a wallet parked elsewhere reads "Balance unavailable" — which is
- * true, rather than a confident figure for the wrong ledger.
+ * **Base only, deliberately.** Yodl pays from USDC on this chain alone (see
+ * `~/yodl/sdk.ts`), but the wallet can still sit on Ethereum or Arbitrum,
+ * because Privy is handed `SUPPORTED_CHAINS`. This number does not follow it
+ * there. Counting three chains' USDC into one hero figure would state a total
+ * the user cannot spend in one go, and counting whichever chain happened to be
+ * current would make the same wallet report three different balances depending
+ * on which chain it was last switched to. One chain, one number, and a wallet parked
+ * elsewhere reads "Balance unavailable" — which is true, rather than a confident
+ * figure for the wrong ledger.
  *
  * **Nothing in this file parses an amount into a `number`.** `balanceOf` returns
  * a `bigint`, `formatUnits` turns it into a decimal string, and `formatAmount`

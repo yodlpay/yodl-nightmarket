@@ -8,18 +8,30 @@
  * https://docs.yodl.me/sdk/react-native/quickstart
  */
 
-import { SUPPORTED_CHAIN_IDS } from '@nightmarket/shared';
 import { createYodlSdk } from '@yodlpay/react-native';
+import { getTokenBySymbol } from '@yodlpay/tokenlists';
 import { env } from '~/env';
+import { BALANCE_CHAIN_ID } from '~/wallet/useBalance';
 
 /**
- * The ids come from `SUPPORTED_CHAINS` in `@nightmarket/shared`, which is viem's
- * chain records and is also what `_layout.tsx` hands Privy. This used to be a
- * literal `[1, 8453, 42161]` with a comment asking the reader to keep it in sync
- * with Privy's list — the two disagreeing is a switch request the wallet refuses,
- * mid-payment, and a comment is a poor way to prevent that.
+ * USDC on Base, and nothing else. The hosted UI shows and pays from `tokenlist`
+ * alone, and `supportedChainIds` is every chain it may ask the wallet to switch
+ * to. Both are `BALANCE_CHAIN_ID` — the chain `useBalance` counts and the top-up
+ * screen tells people to send USDC on — so "Spendable" is exactly what a payment
+ * can draw from. A payment paying out of a ledger that figure ignores is the same
+ * drift the top-up screen imports that constant to prevent.
+ *
+ * Narrower than `SUPPORTED_CHAINS` in `@nightmarket/shared`, which `_layout.tsx`
+ * hands Privy, and that direction is the safe one: every switch Yodl can request
+ * is one the wallet will make. Wider would be a switch the wallet refuses,
+ * mid-payment.
+ *
+ * `getTokenBySymbol` resolves to Circle's native USDC rather than a bridged
+ * variant, and throws for a chain the list carries no USDC on — moving the
+ * balance chain to one fails at startup rather than offering nothing to pay with.
  */
 export const sdk = createYodlSdk({
   integrationAddress: env.yodlIntegrationAddress,
-  supportedChainIds: [...SUPPORTED_CHAIN_IDS],
+  supportedChainIds: [BALANCE_CHAIN_ID],
+  tokenlist: [getTokenBySymbol('USDC', BALANCE_CHAIN_ID)],
 });

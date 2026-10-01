@@ -24,6 +24,7 @@
     "@tanstack/react-query": "5.101.4",
     "@yodlpay/react-native": "^0.13.0",
     "@yodlpay/react-native-eip-7702-provider": "^0.6.0",
+    "@yodlpay/tokenlists": "^1.10.0",
     "expo": "~57.0.10",
     "expo-apple-authentication": "~57.0.1",
     "expo-application": "~57.0.2",

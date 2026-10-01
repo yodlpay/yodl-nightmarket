@@ -25,7 +25,6 @@ export {
   chainFor,
   chainName,
   explorerUrl,
-  SUPPORTED_CHAIN_IDS,
   SUPPORTED_CHAINS,
 } from './chains';
 export { formatAmount, relativeTime } from './format';

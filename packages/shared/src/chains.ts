@@ -9,27 +9,26 @@
  * balance read, so the tables were a copy of a dependency we were shipping anyway.
  *
  * Everything is derived from `SUPPORTED_CHAINS` below. A chain added there is
- * added to Privy's allowlist, to the SDK's supported ids, to `chainName` and to
- * `explorerUrl` in one edit — which is the whole reason for this file.
+ * added to Privy's allowlist, to `chainName` and to `explorerUrl` in one edit —
+ * which is the whole reason for this file. The Yodl SDK is the one deliberate
+ * exception: it pays on Base alone (`apps/mobile/src/yodl/sdk.ts`).
  */
 
 import type { Chain } from 'viem/chains';
 import { arbitrum, base, mainnet, optimism, polygon } from 'viem/chains';
 
 /**
- * Chains the wallet is allowed to be on, and the single source both the Yodl SDK
- * and Privy read.
+ * Chains the wallet is allowed to be on: Privy's allowlist.
  *
  * Base and Arbitrum are where Yodl's supported corridors settle today; mainnet is
  * here so a wallet that starts on it has somewhere to switch *from* rather than
  * erroring. Privy refuses a `wallet_switchEthereumChain` outside this list and
- * Yodl's hosted UI asks for exactly the chains it was told about — a disagreement
- * between the two used to surface as a payment dying at the switch step with an
- * error the user could not act on. They cannot disagree now.
+ * Yodl's hosted UI asks for exactly the chains it was told about, so whatever the
+ * SDK is given must stay inside this list — a wider one used to surface as a
+ * payment dying at the switch step with an error the user could not act on. The
+ * SDK is given Base alone.
  */
 export const SUPPORTED_CHAINS = [base, arbitrum, mainnet] as const;
-
-export const SUPPORTED_CHAIN_IDS: readonly number[] = SUPPORTED_CHAINS.map((chain) => chain.id);
 
 /**
  * Chains we can *name*, which is a longer list than the chains we can be on.
