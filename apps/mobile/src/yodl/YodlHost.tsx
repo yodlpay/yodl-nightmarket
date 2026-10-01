@@ -19,7 +19,7 @@
  * chrome for free.
  */
 
-import { brand, nightmarketYodlTheme, space } from '@nightmarket/theme';
+import { brand, nightmarketYodlTheme } from '@nightmarket/theme';
 import { YodlProvider, type YodlTheme } from '@yodlpay/react-native';
 import type { ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -32,10 +32,20 @@ import { useYodl7702Provider } from './use7702Provider';
  * The one place the shared palette meets the SDK's real type.
  *
  * `packages/theme` declares its own structural mirror of `YodlTheme` so it can
- * stay dependency-free; this annotation is what makes that safe. If the SDK's
+ * stay dependency-free; these two lines are what make that safe. If the SDK's
  * token contract ever changes, the error lands here rather than at runtime as a
  * theme that silently falls back to stock Yodl.
+ *
+ * The annotation alone is not enough. Excess-property checking only fires on
+ * fresh object literals, so assigning an already-typed value lets a key the SDK
+ * does not have through — and the hosted runtime strips unknown keys rather than
+ * rejecting them, so a typo would compile, ship, and quietly do nothing. The
+ * `Exclude` below fails the build instead.
  */
+type ThemeKeysExistOnSdkType =
+  Exclude<keyof typeof nightmarketYodlTheme, keyof YodlTheme> extends never ? true : never;
+const _themeKeysAreReal: ThemeKeysExistOnSdkType = true;
+
 const theme: YodlTheme = nightmarketYodlTheme;
 
 export function YodlHost({
@@ -52,10 +62,12 @@ export function YodlHost({
   const yodlProvider = useYodl7702Provider(provider);
 
   if (!isConnected || !yodlProvider || !address || chainId === null) {
-    // The centring lives here rather than in `HostedLoading`: on the pay path
-    // that component is drawn inside the SDK's overlay, which is already a
-    // centred fill. This is also the only place a wallet that failed to
-    // provision can be seen, now that no screen asks anyone to create one.
+    // A bare fill, not a padded centred box. `HostedLoading` centres its own
+    // content on both axes and bleeds an ambient video to the edges, and this
+    // frame used to inset it by `space.xl` and shrink it to its content width —
+    // which a video ground cannot survive. This is also the only place a wallet
+    // that failed to provision can be seen, now that no screen asks anyone to
+    // create one.
     return (
       <View style={styles.wait}>
         <HostedLoading error={error} />
@@ -85,11 +97,5 @@ const styles = StyleSheet.create({
    * The shell the hosted surface is about to paint, not dark mode's ground —
    * same hex, but this frame is Ink in a light-mode session too.
    */
-  wait: {
-    flex: 1,
-    backgroundColor: brand.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: space.xl,
-  },
+  wait: { flex: 1, backgroundColor: brand.surface },
 });
