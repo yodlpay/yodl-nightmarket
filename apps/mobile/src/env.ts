@@ -23,7 +23,7 @@ export const env = {
   privyClientId: read(process.env.EXPO_PUBLIC_PRIVY_CLIENT_ID),
 
   /**
-   * Falls back to the zero address so `createSdk` — which requires a non-empty
+   * Falls back to the zero address so `createYodlSdk` — which requires a non-empty
    * `0x` address — still constructs. A payment made under it is attributed to
    * nobody, which is why `missingEnv` still reports it.
    */
