@@ -1,7 +1,7 @@
 /**
  * The Yodl SDK instance, created once for the whole app.
  *
- * `createSdk` is a config-once factory, not a per-screen thing — hence a module
+ * `createYodlSdk` is a config-once factory, not a per-screen thing — hence a module
  * constant rather than a hook. It holds no wallet state; the live account and
  * chain go to `<YodlProvider>` on every render.
  *
@@ -9,7 +9,7 @@
  */
 
 import { SUPPORTED_CHAIN_IDS } from '@nightmarket/shared';
-import { createSdk } from '@yodlpay/react-native';
+import { createYodlSdk } from '@yodlpay/react-native';
 import { env } from '~/env';
 
 /**
@@ -19,7 +19,7 @@ import { env } from '~/env';
  * with Privy's list — the two disagreeing is a switch request the wallet refuses,
  * mid-payment, and a comment is a poor way to prevent that.
  */
-export const sdk = createSdk({
+export const sdk = createYodlSdk({
   integrationAddress: env.yodlIntegrationAddress,
   supportedChainIds: [...SUPPORTED_CHAIN_IDS],
 });
